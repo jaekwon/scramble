@@ -565,10 +565,6 @@ function displayCompose(to, subject, body){
 }
 
 function sendEmail(to,subject,body){
-    // generate 160-bit (20 byte) message id
-    // secure random generator, so it will be unique
-    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))
-
     // validate email addresses
     var toAddresses = to.split(",").map(trimToLower)
     var invalidToAddresses = toAddresses.filter(function(addr){
@@ -628,15 +624,29 @@ function sendEmail(to,subject,body){
         // TODO: report errors
         // TODO: quit if noone to send to
 
-        sendEmailEncrypted(msgId, pubkeys, subject, body);
+        sendEmailEncrypted(pubkeys, subject, body);
 
     })
 
     return false
 }
 
+function lookupPublicKeys(toAddresses, cb) {
+    var data = {
+        token: $.cookie("token"),
+        passHash: $.cookie("passHash"),
+        publicKey:keys.publicKeyArmored,
+        cipherPrivateKey:bin2hex(cipherPrivateKey)
+    }
+    $.post("/user/", data, function(){
+}
+
 // pubkeys: {toAddress: <pubKeyArmored>}
-function sendEmailEncrypted(msgId,pubkeys,subject,body){
+function sendEmailEncrypted(pubkeys,subject,body){
+    // generate 160-bit (20 byte) message id
+    // secure random generator, so it will be unique
+    // TODO: Maybe we should hash the encrypted message bytes so that it is deterministic.
+    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))
 
     // Encrypt message for all recipients in `pubkeys`
     var publicKeys = [];

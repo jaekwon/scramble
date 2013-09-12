@@ -42,3 +42,8 @@ type InboxSummary struct {
 	PublicHash   string
 	EmailHeaders []EmailHeader
 }
+
+type HashAddress struct {
+    Hash    string
+    Host    string
+}

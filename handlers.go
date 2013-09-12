@@ -48,6 +48,34 @@ func publicKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// POST /publickeys to look up many public keys from
+//  many <public key hash>@<host> addresses.
+// The server is untrusted, so the client must verify by hashing.
+// Unknown public key hashes cause the server to dispatch requests
+//  to the address host.
+func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
+    // server-to-server requests need no userId,
+    // but all addresses must have this server as the host
+    //  to prevent abuses.
+	userId := authenticate(r)
+
+    // parse addresses
+    addrs = r.FormValue("addresses")
+    hostAddrs := map[string][]*HashAddress{}
+    for addr := strings.Split(addrs, ",") {
+        addr = validateHashAddress(addr)
+        match := regexHashAddress.FindStringSubmatch(addr)
+        pubHash := match[1]
+        host := match[2]
+        hostAddrs[host] = append(hostAddrs[host], &HashAddress{pubHash, host})
+    }
+
+    // if userId is nil, ensure that hostAddrs only contains self host.
+    ...
+
+    // 
+}
+
 // POST /user to create a new account
 // Remember that public and private key generation happens
 // on the client. Public key, encrypted private key posted here.

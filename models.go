@@ -43,6 +43,10 @@ type InboxSummary struct {
 }
 
 type HashAddress struct {
-    Hash    string
-    Host    string
+	Hash    string
+	Hosh    string
+}
+
+func (this *HashAddress) String() string {
+	return this.Hash+"@"+this.Host
 }

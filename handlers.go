@@ -102,7 +102,7 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 				u := url.URL{}
 				u.Scheme = "https"
 				u.Host = host
-				u.Path = "publickeys/"
+				u.Path = "/publickeys/"
 				body := url.Values{}
 				addrStrs := []string{}
 				for _, addr := range addrs {
@@ -115,7 +115,8 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 		}
 		// update `res` with responses
 		counter := len(hostAddrs)
-		chDone := make(chan bool)
+		chDone := make(chan bool, 1)
+		FOR_LOOP:
 		for {
 			select {
 				case hostRespErr := <-ch:
@@ -134,9 +135,9 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 						res[addr] = pubKeyErr
 					}
 				case <-timeout:
-					break
+					break FOR_LOOP
 				case <-chDone:
-					break
+					break FOR_LOOP
 			}
 		}
 		// fill remaining addresses with appropriate error messages
@@ -153,17 +154,20 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 		if err != nil { panic(err) }
 		w.Write(resJson)
 		// flush ch
-		for {
-			select {
-				case hostRespErr := <-ch:
-					counter -= 1
-					if counter == 0 {
-						chDone <- true
-					}
-					if hostRespErr.Err != nil { continue }
-					hostRespErr.Resp.Body.Close()
-				case <-chDone:
-					break
+		if counter > 0 {
+			FOR_LOOP2:
+			for {
+				select {
+					case hostRespErr := <-ch:
+						counter -= 1
+						if counter == 0 {
+							chDone <- true
+						}
+						if hostRespErr.Err != nil { continue }
+						hostRespErr.Resp.Body.Close()
+					case <-chDone:
+						break FOR_LOOP2
+				}
 			}
 		}
 	}

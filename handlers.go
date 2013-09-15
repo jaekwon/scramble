@@ -238,7 +238,7 @@ func authenticate(r *http.Request) *UserID {
 	if err != nil {
 		return nil
 	}
-	passHashOld, _ := r.Cookie("passHashOld")
+	passHashOld, err := r.Cookie("passHashOld")
 	var passHashOldVal string
 	if err != nil {
 		passHashOldVal = ""

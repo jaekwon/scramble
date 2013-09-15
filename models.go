@@ -44,7 +44,7 @@ type InboxSummary struct {
 
 type HashAddress struct {
 	Hash    string
-	Hosh    string
+	Host    string
 }
 
 func (this *HashAddress) String() string {

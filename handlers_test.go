@@ -68,4 +68,8 @@ func TestPublicKeysHandler(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name:"passHashOld", Value:"909b45492bad2efe39489d2d0878ea574ea9a6d4", Expires:expires})
 	publicKeysHandler(record, req)
 	log.Println(record.Code, record.Body.String())
+
+	// TODO: this test doesn't actually test much,
+	// since there are no test hosts to dispatch to.
+	// We could set up some test servers.
 }

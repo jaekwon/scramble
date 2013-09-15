@@ -96,7 +96,6 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 			Err  error
 		}
 		ch := make(chan *HostRespErr)
-		timeout := time.After(5 * time.Second)
 		for host, addrs := range hostAddrs {
 			go func() {
 				u := url.URL{}
@@ -115,15 +114,12 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 		}
 		// update `res` with responses
 		counter := len(hostAddrs)
-		chDone := make(chan bool, 1)
-		FOR_LOOP:
-		for {
+		timeout := time.After(5 * time.Second)
+                timedOut := false
+		for counter > 0 && !timedOut {
 			select {
 				case hostRespErr := <-ch:
 					counter -= 1
-					if counter == 0 {
-						chDone <- true
-					}
 					if hostRespErr.Err != nil { continue } // TODO better error messages
 					respBody, err := ioutil.ReadAll(hostRespErr.Resp.Body)
 					defer hostRespErr.Resp.Body.Close()
@@ -135,9 +131,7 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 						res[addr] = pubKeyErr
 					}
 				case <-timeout:
-					break FOR_LOOP
-				case <-chDone:
-					break FOR_LOOP
+					timedOut = true
 			}
 		}
 		// fill remaining addresses with appropriate error messages
@@ -153,21 +147,13 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 		resJson, err := json.Marshal(res)
 		if err != nil { panic(err) }
 		w.Write(resJson)
-		// flush ch
-		if counter > 0 {
-			FOR_LOOP2:
-			for {
-				select {
-					case hostRespErr := <-ch:
-						counter -= 1
-						if counter == 0 {
-							chDone <- true
-						}
-						if hostRespErr.Err != nil { continue }
-						hostRespErr.Resp.Body.Close()
-					case <-chDone:
-						break FOR_LOOP2
-				}
+		// drain ch
+		for counter > 0 {
+			select {
+				case hostRespErr := <-ch:
+					counter -= 1
+					if hostRespErr.Err != nil { continue }
+					hostRespErr.Resp.Body.Close()
 			}
 		}
 	}

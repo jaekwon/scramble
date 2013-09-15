@@ -81,7 +81,12 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 		// all lookups will be done locally rather than dispatching further.
 		for _, addrs := range hostAddrs {
 			for _, addr := range addrs {
-				res[addr.String()] = &PubKeyErr{LoadPubKey(addr.Hash), ""}
+				pubKey := LoadPubKey(addr.Hash)
+				if pubKey == "" {
+					res[addr.String()] = &PubKeyErr{LoadPubKey(addr.Hash), ""}
+				} else {
+					res[addr.String()] = &PubKeyErr{LoadPubKey(addr.Hash), ""}
+				}
 			}
 		}
 		resJson, err := json.Marshal(res)
@@ -359,6 +364,7 @@ func emailSendHandler(w http.ResponseWriter, r *http.Request) {
 	email.From = userId.EmailAddress
 	email.To = r.FormValue("to")
 
+    // XXX pubHashTo needs to be removed
 	if r.FormValue("cipherBody") == "" { // unencrypted
 		email.PubHashFrom = ""
 		email.PubHashTo = ""

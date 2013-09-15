@@ -125,7 +125,7 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 					defer hostRespErr.Resp.Body.Close()
 					if err != nil { continue } // TODO better error messages
 					parsed := map[string]*PubKeyErr{}
-					err = json.Unmarshal(respBody, parsed)
+					err = json.Unmarshal(respBody, &parsed)
 					if err != nil { continue } // TODO better error messages
 					for addr, pubKeyErr := range parsed {
 						res[addr] = pubKeyErr

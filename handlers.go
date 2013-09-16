@@ -11,6 +11,22 @@ import (
 )
 
 //
+// UTILITY FUNCTIONS
+//
+
+func groupAddrsByHost(addrs []string) map[string][]HashAddress{} {
+	hostAddrs := map[string][]HashAddress{}
+	for _, addr := range addrs {
+		addr = validateHashAddress(addr)
+		match := regexHashAddress.FindStringSubmatch(addr)
+		pubHash := match[1]
+		host := match[2]
+		hostAddrs[host] = append(hostAddrs[host], HashAddress{pubHash, host})
+	}
+    return hostAddrs
+}
+
+//
 // SERVE HTML, CSS, JS
 //
 
@@ -59,14 +75,7 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 
 	// parse addresses & group by host
 	addrs := r.FormValue("addresses")
-	hostAddrs := map[string][]*HashAddress{}
-	for _, addr := range strings.Split(addrs, ",") {
-		addr = validateHashAddress(addr)
-		match := regexHashAddress.FindStringSubmatch(addr)
-		pubHash := match[1]
-		host := match[2]
-		hostAddrs[host] = append(hostAddrs[host], &HashAddress{pubHash, host})
-	}
+    hostAddrs := groupAddrsByHost(strings.Split(addrs, ","))
 
 	// res will get returned as json: {address: {pubkey, err}}
 	type PubKeyErr struct {
@@ -83,9 +92,9 @@ func publicKeysHandler( w http.ResponseWriter, r *http.Request) {
 			for _, addr := range addrs {
 				pubKey := LoadPubKey(addr.Hash)
 				if pubKey == "" {
-					res[addr.String()] = &PubKeyErr{LoadPubKey(addr.Hash), ""}
+					res[addr.String()] = &PubKeyErr{"", "Unknown address"}
 				} else {
-					res[addr.String()] = &PubKeyErr{LoadPubKey(addr.Hash), ""}
+					res[addr.String()] = &PubKeyErr{pubKey, ""}
 				}
 			}
 		}
@@ -364,20 +373,17 @@ func emailSendHandler(w http.ResponseWriter, r *http.Request) {
 	email.From = userId.EmailAddress
 	email.To = r.FormValue("to")
 
-    // XXX pubHashTo needs to be removed
+    // XXX remove this case
 	if r.FormValue("cipherBody") == "" { // unencrypted
-		email.PubHashFrom = ""
-		email.PubHashTo = ""
-		email.Box = "outbox"
 		email.CipherSubject = r.FormValue("subject")
 		email.CipherBody = r.FormValue("body")
 	} else { // encrypted
-		email.PubHashFrom = userId.PublicHash
-		email.PubHashTo = validateHash(r.FormValue("pubHashTo"))
-		email.Box = validateBox(r.FormValue("box"))
 		email.CipherSubject = validateHex(r.FormValue("cipherSubject"))
 		email.CipherBody = validateHex(r.FormValue("cipherBody"))
 	}
 
+    // TODO: saveMessage may fail if messageId is not unique.
 	SaveMessage(email)
+
+    // XXX ...
 }

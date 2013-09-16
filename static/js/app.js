@@ -490,9 +490,6 @@ function displayEmail(target){
                 to:          target.data("to"),
                 toAddresses: toAddresses,
 
-                isInbox:     target.data("box")=="inbox",
-                isArchive:   target.data("box")=="archive",
-
                 subject:     target.text(),
                 body:        plaintextBody
             }

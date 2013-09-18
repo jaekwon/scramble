@@ -66,20 +66,12 @@ var timeout time.Duration
 var sem chan int
 var SaveMailChan chan *Client
 
-// XXX remove gConfig
-var gConfig = map[string]string{
-	"MYSQL_HOST":             "127.0.0.1:3306",
-	"MYSQL_USER":             "gmail_mail",
-	"MYSQL_PASS":             "ok",
-	"MYSQL_DB":               "gmail_mail",
-	"GM_MAIL_TABLE":          "new_mail",
-}
-
+// TODO: get parameters from config.go
 func configure() {
-	//
-	serverName = "hashed.im"
-	//
-	listenAddress = "0.0.0.0:25"
+	// MX server name
+	serverName = GetConfig().ThisMxHost
+	// SMTP port that nginx forwards to
+	listenAddress = "127.0.0.1:25"
 	// max email size
 	maxSize = 131072
 	// timeout for reads

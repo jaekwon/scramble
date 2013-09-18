@@ -112,7 +112,8 @@ func migrateEmailRefactor() error {
 	}
 	rows, err := db.Query(`SELECT
         m.unix_time, m.message_id, m.from_email, m.to_email,
-        m.cipher_subject, m.cipher_body, m.box
+        m.cipher_subject, m.cipher_body, m.box,
+        m.pub_hash_to, m.pub_hash_from
 		FROM email as m`)
 	if err != nil { return err }
 	oldEmails := map[string]*OldEmailRow{}
@@ -132,6 +133,7 @@ func migrateEmailRefactor() error {
 		if err != nil { return err }
 		if oldEmails[oldEmail.MessageID] == nil {
 			oldEmails[oldEmail.MessageID] = oldEmail
+			oldEmail.Boxes = map[string][]string{}
 		}
 		boxesForRecipient := oldEmails[oldEmail.MessageID].Boxes[oldEmail.PubHashTo]
 		if boxesForRecipient == nil {
@@ -169,7 +171,7 @@ func migrateEmailRefactor() error {
 	// Reinsert everything from oldEmails
 	for _, oldEmail := range oldEmails {
 		// insert row into email
-		_, err := db.Exec(`INSERT INTO email
+		_, err := db.Exec(`INSERT INTO new_email
             (message_id, unix_time, from_email, to_email, cipher_subject, cipher_body)
             VALUES (?,?,?,?,?,?)`,
 			oldEmail.MessageID,
@@ -184,7 +186,7 @@ func migrateEmailRefactor() error {
 		var sentToSelf bool = false
 		for pubHashTo, boxes := range oldEmail.Boxes {
 			addressTo := pubHashTo+"@scramble.io"
-			if oldEmail.From == addressTo {
+			if oldEmail.PubHashFrom == pubHashTo && len(boxes) == 1 && boxes[0] != "sent" {
 				sentToSelf = true
 			}
 			for _, box := range boxes {

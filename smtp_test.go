@@ -1,5 +1,6 @@
 // run from the commandline like
 // > go test -run TestSendEmail -server hashed.im -v
+// also see http://qmail.jms1.net/test-auth.shtml
 
 package main
 

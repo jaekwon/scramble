@@ -71,7 +71,7 @@ func configure() {
 	// MX server name
 	serverName = GetConfig().ThisMxHost
 	// SMTP port that nginx forwards to
-	listenAddress = "127.0.0.1:25"
+	listenAddress = "127.0.0.1:8825"
 	// max email size
 	maxSize = 131072
 	// timeout for reads
@@ -94,7 +94,7 @@ func StartSMTPServer() {
 	if err != nil {
 		log.Printf("Cannot listen on port, %v\n", err)
 	} else {
-		log.Printf("Listening on tcp %s\n", listenAddress)
+		log.Printf("Listening on %s (SMTP)\n", listenAddress)
 	}
 	var clientId int64
 	clientId = 1

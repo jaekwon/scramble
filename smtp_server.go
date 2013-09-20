@@ -27,7 +27,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/sloonz/go-iconv"
+	"github.com/sloonz/go-iconv" // TODO: requires GCC.
 	"github.com/sloonz/go-qprintable"
 	"io"
 	"io/ioutil"
@@ -38,26 +38,31 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"net/mail"
+	"crypto/rand"
 )
 
 type Client struct {
+	clientId    int64
 	state       int
 	helo        string
-	mailFrom    string
-	rcptTo      []string
 	response    string
-	remoteAddr  string
-	data        string
-	subject     string
-	time        int64
 	conn        net.Conn
 	bufin       *bufio.Reader
 	bufout      *bufio.Writer
 	killTime    int64
 	errors      int
-	clientId    int64
 	savedNotify chan int
+	// Email properties
+	time        int64
+	mailFrom    string
+	rcptTo      []string
+	subject     string
+	data        string
+	remoteAddr  string
 }
+
+var smtpTemplateRegexp *regexp.Regexp = regexp.MustCompile(`-----BEGIN PGP MESSAGE-----.*-----END PGP MESSAGE-----`)
 
 var serverName string
 var listenAddress string
@@ -345,6 +350,59 @@ func saveMail() {
 	}
 }
 
+func deliverMailLocally(client *Client) error {
+
+	// parse the mail data to get the headers & body
+	parsed, err := mail.ReadMessage(strings.NewReader(client.data))
+	if err != nil { return err }
+
+	messageID := parsed.Header.Get("Message-ID")
+	if messageID == "" { // generate a message id
+		bytes := &[20]byte{}
+		rand.Read(bytes[:])
+		messageID = hex.EncodeToString(bytes[:])
+	}
+
+	toList, err := parsed.Header.AddressList("To")
+	if err != nil { return err }
+	// TODO: add a way to distinguish To & Cc fields.
+	// for now just add merge them into To.
+	ccList, err := parsed.Header.AddressList("Cc")
+	if err != nil { return err }
+	toList = append(toList, ccList...)
+	// Bcc fields can be ignored, we still have rcptTo.
+	toStrList := []string{}
+	for _, to := range toList {
+		toStrList = append(toStrList, to.String())
+	}
+
+	bodyBytes, err := ioutil.ReadAll(parsed.Body)
+	if err != nil { return err }
+	cipherPackets := smtpTemplateRegexp.FindAllString(string(bodyBytes), -1)
+	if len(cipherPackets) != 2 {
+		return errors.New(fmt.Sprintf("Expected 2 cipher packets (subject & body). Found %v", len(cipherPackets)))
+	}
+
+	email := new(Email)
+	email.MessageID = messageID
+	email.UnixTime = client.time
+	email.From = client.mailFrom
+	email.To = strings.Join(toStrList, ",")
+	email.CipherSubject = cipherPackets[0]
+	email.CipherBody = cipherPackets[1]
+
+	// TODO: consider if transactions are required.
+	// TODO: saveMessage may fail if messageId is not unique.
+	SaveMessage(email)
+
+	// add to inbox locally
+	for _, addr := range client.rcptTo {
+		AddMessageToBox(email, addr, "inbox")
+	}
+
+	return nil
+}
+
 func validateEmailData(client *Client) error {
 	if client.mailFrom == "" {
 		return errors.New("Missing MAIL FROM")
@@ -352,7 +410,10 @@ func validateEmailData(client *Client) error {
 	if len(client.rcptTo) == 0 {
 		return errors.New("Missing RCPT TO")
 	}
-	// TODO also check the hosts of the rcptTo addresses.
+	for _, addr := range client.rcptTo {
+		// TODO check the hosts of the rcptTo addresses.
+		addr = addr // noop :P
+	}
 	return nil
 }
 

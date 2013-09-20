@@ -339,7 +339,7 @@ func saveMail() {
 		// client.data = compress(add_head + client.data)
 
 		// insert data
-		log.Printf("Would insert: %v, %v, %v, %v, %v\n", client.mailFrom, client.rcptTo, client.subject, client.data, client.remoteAddr)
+		err = deliverMailLocally(client)
 		if err != nil {
 			log.Printf("Save error, %v\n", err)
 			client.savedNotify <- -1

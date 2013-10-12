@@ -86,6 +86,11 @@ input[type=submit] {
 #login h1 {
     margin-left: 150px
 }
+#login img.logo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
 #login .strike {
     text-align: center;
     font-style: italic;
@@ -197,6 +202,11 @@ input[type=submit] {
 #sidebar .address, #sidebar .pubHash {
     font: 80% monospace;
     margin: 8px 0;
+}
+#sidebar .info {
+    margin: 8px 0;
+    font-weight:bold;
+    text-align: center;
 }
 #sidebar .tab {
     display: block;

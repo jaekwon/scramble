@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Scramble.io</title>
+    <title>hashed.im</title>
     <link rel="stylesheet" href="/css/normalize.css"></link>
     <link rel="stylesheet" href="/css/style.css"></link>
 </head>
@@ -12,7 +12,7 @@
 <!-- LOGIN -->
 <script id="login-template" type="text/x-handlebars-template">
 <div id="login">
-    <h1>Scramble</h1>
+    <img class="logo" src="/images/hashed_im_sm.png" title="hashed.im"/>
 
     <div class="prompt"><label>User</label><input type="text" id="token"></input></div>
     <div class="prompt"><label>Passphrase</label><input type="password" id="pass"></input></div>
@@ -24,14 +24,9 @@
 
     <div class="footer">
         <p>
-            <strong>Scramble.io now has easy-to-remember email addresses!</strong><br/>
-            Also, you can now send unencrypted mail to outside addresses.<br/>
-            As always, all mail between Scramble email addresses is encrypted and signed.<br/>
             <a href="/doc/">How it works</a>
-        </p>
-        <p>
             Questions? Feedback? Just testing a new account?<br/>
-            Send me a note! <a href="mailto:dcposch@scramble.io">dcposch@scramble.io</a>
+            Send me a note! <a href="mailto:jaekwon@hashed.im">jaekwon@hashed.im</a>
         </p>
     </div>
 
@@ -77,11 +72,16 @@
 <div id="content"></div>
 
 <div id="sidebar">
-    <h1>Scramble</h1>
+    <img src="/images/hashed_im_sm.png" title="hashed.im"/>
     <div class="warning" id="warningBar"></div>
-    <div class="welcome">Welcome, {{token}}. <a href="/" id="link-logout">Log Out</a></div>
-    <div class="address">{{emailAddress}}</div>
-    <div class="pubHash">#{{pubHash}}</div>
+    <div class="info">
+        <span class="welcome">Welcome, {{token}}! \\</span>
+        <a href="/" id="link-logout">Log Out</a>
+        <br />
+        <span class="email">{{emailAddress}}</span>
+        <br />
+        <span class="pubHash">#{{pubHash}}</span>
+    </div>
     <a id="tab-compose" href="#" class="tab">Compose</a>
     <a id="tab-inbox" href="#" class="tab">Inbox</a>
     <div id="inbox" class="box"></div>

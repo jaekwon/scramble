@@ -12,16 +12,28 @@ controls: true
 
 --
 
-### Email is Insecure
+### HTTPS is Insecure
 
-* HTTPS CAs
-* NSA "fibertapping"
-* FISA / NSL / govt order
+* Certificate Authorities
+* Perfect Forward Secrecy
+* Government Order
 
 --
 
-### Email is Insecure
-#### HTTPS CAs
+### Certificate Authorities (CA)
+
+<div style="font-size: 1.5em">
+<pre>
+
+
+$ ls -lt /etc/ssl/certs/ | wc -l
+458
+</pre>
+</div>
+
+--
+
+### Certificate Authorities (CA)
 
 * March 2011 Comodo<br/>
   `mail.google.com`,<br/>
@@ -30,50 +42,214 @@ controls: true
   `*.google.com`
 * FireFox & CNNIC
 
-With MITM attacks, HTTPS alone can't be trusted.
+<i>Top down security isn't working!</i>
 
 --
 
-### Email is Insecure
-#### NSA "fibertapping"
+### Convergence.io
 
-* International fibers
-* Global Intercept partners
-* !(Perfect Forward Secrecy)
+An alternative!
+
+<i>"allows you to configure a dynamic set of <b>Notaries</b> which use network perspective to validate your communication"</i>
 
 --
 
-### Email is Insecure
-#### FISA/NSL/govt order
+### Convergence.io
 
-* Lavabit (used by Snowden)
+<img src="http://i.imgur.com/r51q1g5.png"/>
+
+--
+
+### Convergence.io
+
+<img src="http://i.imgur.com/uKjWeKJ.png"/>
+
+--
+
+Except,
+
+--
+
+### Perfect Forward Secrecy
+
+<b>Forward secrecy</b> requires that the private keys for a connection are not kept in <b>persistent storage</b>.
+
+"Retroactive decryption"
+
+<!-- Without perfect forward secrecy, if the server's private key is compromised, not only will all future TLS-encrypted sessions using that server certificate be compromised, but also any past sessions that used it as well -->
+
+--
+
+### Perfect Forward Secrecy
+
+<b>Ephemeral Diffie-Hellman key exchange</b>
+
+Lets two computers to establish a shared secret over an insecure communication channel.
+
+(Magic!)
+
+--
+
+Except,
+
+--
+
+### Government Order
+
+<img src="http://imgs.xkcd.com/comics/security.png"/>
+
+--
+
+### Government Order
+
+* PRISM
+* Lavabit
 * Silent Circle (Zimmerman)
 * TorMail (Marques)
-* HushMail, complicit
+* HushMail
 
 --
 
-### Solution
+<b>(How) can we secure email?</b>
+
+--
+
+### Secure email
 
 * Best crypto primitives
 * Webmail w/ untrusted servers
 * Open source & federated
 
-Welcome to Scramble!
-
 --
 
-### Scramble
-#### Best crypto primitives
+### Best crypto primitives
 
-* OpenPGP can be secure
 * RSA2048 for signing
 * RSA2048 & AES128 for encryption
 
+OpenPGP supports this!
+
 --
 
-### Scramble
-#### Webmail w/ untrusted servers
+### OpenPGP
+
+Message:
+
+<pre style="color:red">
+To, Alice
+
+Eve is sketchy
+
+ - Bob
+</pre>
+
+--
+
+### OpenPGP
+
+Message:
+<pre style="color:red">
+To, Alice
+
+Eve is sketchy
+
+ - Bob
+</pre>
+
+Session key:
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre>
+
+--
+
+### OpenPGP
+
+Cipher Message:
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+Session key:
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre>
+
+--
+
+### OpenPGP
+
+Cipher Message:
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+Session key:
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre>
+
+Recipient public key:
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...
+-----END PGP PUBLIC KEY BLOCK-----
+</pre>
+
+
+--
+
+### OpenPGP
+
+Cipher Message:
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+Encrypted Session key:
+<pre style="color:green">
+ilLIn+VuSZYR4Xym0BTX0r/gKKMVfNBgRPIxuHhtFBEyisCWwhDxrDsHP/vU
+I9UqeqYQl67o+DcVWAcD0NUpCqtp2OH0s8TVn5Wac7g7n6MK7bPGCnschPfR
+</pre>
+
+Recipient Public Key:
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...<br/>-----END PGP PUBLIC KEY BLOCK-----
+</pre>
+
+
+--
+
+### OpenPGP
+
+Encrypted Message:
+<pre style="color:green">-----BEGIN PGP MESSAGE BLOCK-----
+xsBNBFJEx2kBCADzzfl2qJMPKHND7VFDJgDPc9U01kuzb1Mlo+wUm0YezfYQZbHn
+7ZaAiYXLw3hLzSVXnve3mva2vhxmFQQW4GovR9dysQ/i9jcTOwmwMyBWrIz1ncbp
+...<br/>-----END PGP MESSAGE BLOCK-----
+</pre>
+
+Recipient Public Key:
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...<br/>-----END PGP PUBLIC KEY BLOCK-----
+</pre>
+
+
+--
+
+### Webmail w/ untrusted servers
+
+--
+
+### Webmail w/ untrusted servers
 
 Encrypt all of the things!
 
@@ -81,13 +257,11 @@ Encrypt all of the things!
 * Contacts
 * Index blobs (future)
 
-Also, `Scrypt(<PassPhrase>)` for KDF<br />
-to encrypt user's `<PrivateKey>`
+Also, store the encrypted private key on the server using `Scrypt(<PassPhrase>)`
 
 --
 
-### Scramble
-#### Webmail w/ untrusted servers
+### Webmail w/ untrusted servers
 
 Can't trust the server,<br/>
 Can't trust the javascript.
@@ -97,10 +271,13 @@ Can't trust the javascript.
 
 --
 
-### Scramble
-#### Name Resolution
+### Name Resolution
 
-A user is identified by hir `<PublicKey>`
+--
+
+### Name Resolution
+
+Hi, I am:
 
 ```
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -123,44 +300,33 @@ KyO/vJuje0QPxkloHmy0JKmOIuB+dPkxYaIQUKubm0xoh6BWWg1I3obE7cCn
 
 --
 
-### Scramble
-#### Name Resolution (cont.)
+### Name Resolution
 
-A user is identified by hir `Hash(<PublicKey>)`
-
-`9b66b9f17380bfc04abf342f9df077b69713393e`
-
-Or just the first 80 bits, in base32:
-
-`tntlt4ltqc74asv7`
+Hi, I am: `tntlt4ltqc74asv7@hashed.im`
 
 Still hard to remember!
 
 --
 
-### Scramble
-#### Name Resolution (cont.)
+### Name Resolution
 
-How can resolve an address, `jaekwon@hashed.im`<br/>
-  to `tntlt4ltqc74asv7`?
+Hi, I am: `jaekwon@hashed.im`
 
 * NameCoin?
 * Public Key servers?
 
 --
 
-### Scramble
-#### Name Resolution (cont.)
-
-An alternative solution
+### Name Resolution
 
 * 1B addresses require < 100Gb to store
-* Distributed notary system!
+* Distributed notary system
+
+Like Convergence.io
 
 --
 
-### Scramble
-#### Name Resolution (cont.)
+### Name Resolution
 
 * Client has a list of trusted notaries,<br/>
   `hashed.im` & `scramble.io`
@@ -172,27 +338,44 @@ An alternative solution
 
 --
 
-### Scramble
-#### Open source & federated
+### Open source & federated
+
+* What if Lavabit had been open source?
+
+--
+
+### Open source & federated
 
 * What if Lavabit had been open source?
 * Federation == Shutdown Resistance
-* Federation allows for notary name resolution
+
+--
+
+### Open source & federated
+
+* What if Lavabit had been open source?
+* Federation == Shutdown Resistance
+* Federation == Notary Perspectives
+
+--
+
+### Introducing, Scramble
+
+It already exists
+
+http://github.com/dcposch/scramble
+
+Signup at https://hashed.im
 
 --
 
 ### Scramble + Future
 
+* Normal email compatibility
 * Enigmail compatibility
 * Search w/ encrypted indices
-* Chat?
-* FileSharing?
+* Chat
 
 --
 
 ### Questions?
-
-Sign up! https://hashed.im
-
-github: dcposch/scramble<br/>
-my fork: jaekwon/scramble

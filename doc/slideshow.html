@@ -358,15 +358,23 @@ pre .chunk {
     <section class="slide"><h1>Scramble</h1>
 <h2>NSA-proof Secure Webmail</h2>
 </section>
-    <section class="slide"><h3>Email is Insecure</h3>
+    <section class="slide"><h3>HTTPS is Insecure</h3>
 <ul>
-<li>HTTPS CAs</li>
-<li>NSA &quot;fibertapping&quot;</li>
-<li>FISA / NSL / govt order</li>
+<li>Certificate Authorities</li>
+<li>Perfect Forward Secrecy</li>
+<li>Government Order</li>
 </ul>
 </section>
-    <section class="slide"><h3>Email is Insecure</h3>
-<h4>HTTPS CAs</h4>
+    <section class="slide"><h3>Certificate Authorities (CA)</h3>
+<div style="font-size: 1.5em">
+<pre>
+
+
+$ ls -lt /etc/ssl/certs/ | wc -l
+458
+</pre>
+</div></section>
+    <section class="slide"><h3>Certificate Authorities (CA)</h3>
 <ul>
 <li>March 2011 Comodo<br/>
 <code>mail.google.com</code>,<br/>
@@ -375,54 +383,157 @@ pre .chunk {
 <code>*.google.com</code></li>
 <li>FireFox &amp; CNNIC</li>
 </ul>
-<p>With MITM attacks, HTTPS alone can&#39;t be trusted.</p>
+<p><i>Top down security isn&#39;t working!</i></p>
 </section>
-    <section class="slide"><h3>Email is Insecure</h3>
-<h4>NSA &quot;fibertapping&quot;</h4>
-<ul>
-<li>International fibers</li>
-<li>Global Intercept partners</li>
-<li>!(Perfect Forward Secrecy)</li>
-</ul>
+    <section class="slide"><h3>Convergence.io</h3>
+<p>An alternative!</p>
+<p><i>&quot;allows you to configure a dynamic set of <b>Notaries</b> which use network perspective to validate your communication&quot;</i></p>
 </section>
-    <section class="slide"><h3>Email is Insecure</h3>
-<h4>FISA/NSL/govt order</h4>
+    <section class="slide"><h3>Convergence.io</h3>
+<p><img src="http://i.imgur.com/r51q1g5.png"/></p>
+</section>
+    <section class="slide"><h3>Convergence.io</h3>
+<p><img src="http://i.imgur.com/uKjWeKJ.png"/></p>
+</section>
+    <section class="slide"><p>Except,</p>
+</section>
+    <section class="slide"><h3>Perfect Forward Secrecy</h3>
+<p><b>Forward secrecy</b> requires that the private keys for a connection are not kept in <b>persistent storage</b>.</p>
+<p>&quot;Retroactive decryption&quot;</p>
+<!-- Without perfect forward secrecy, if the server's private key is compromised, not only will all future TLS-encrypted sessions using that server certificate be compromised, but also any past sessions that used it as well --></section>
+    <section class="slide"><h3>Perfect Forward Secrecy</h3>
+<p><b>Ephemeral Diffie-Hellman key exchange</b></p>
+<p>Lets two computers to establish a shared secret over an insecure communication channel.</p>
+<p>(Magic!)</p>
+</section>
+    <section class="slide"><p>Except,</p>
+</section>
+    <section class="slide"><h3>Government Order</h3>
+<p><img src="http://imgs.xkcd.com/comics/security.png"/></p>
+</section>
+    <section class="slide"><h3>Government Order</h3>
 <ul>
-<li>Lavabit (used by Snowden)</li>
+<li>PRISM</li>
+<li>Lavabit</li>
 <li>Silent Circle (Zimmerman)</li>
 <li>TorMail (Marques)</li>
-<li>HushMail, complicit</li>
+<li>HushMail</li>
 </ul>
 </section>
-    <section class="slide"><h3>Solution</h3>
+    <section class="slide"><p><b>(How) can we secure email?</b></p>
+</section>
+    <section class="slide"><h3>Secure email</h3>
 <ul>
 <li>Best crypto primitives</li>
 <li>Webmail w/ untrusted servers</li>
 <li>Open source &amp; federated</li>
 </ul>
-<p>Welcome to Scramble!</p>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Best crypto primitives</h4>
+    <section class="slide"><h3>Best crypto primitives</h3>
 <ul>
-<li>OpenPGP can be secure</li>
 <li>RSA2048 for signing</li>
 <li>RSA2048 &amp; AES128 for encryption</li>
 </ul>
+<p>OpenPGP supports this!</p>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Webmail w/ untrusted servers</h4>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Message:</p>
+<pre style="color:red">
+To, Alice
+
+Eve is sketchy
+
+ - Bob
+</pre></section>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Message:</p>
+<pre style="color:red">
+To, Alice
+
+Eve is sketchy
+
+ - Bob
+</pre>
+
+<p>Session key:</p>
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre></section>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Cipher Message:</p>
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+<p>Session key:</p>
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre></section>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Cipher Message:</p>
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+<p>Session key:</p>
+<pre style="color:red">
+"SECRET_AES_SESSION_KEY_!@#K!J@#"
+</pre>
+
+<p>Recipient public key:</p>
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...
+-----END PGP PUBLIC KEY BLOCK-----
+</pre></section>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Cipher Message:</p>
+<pre style="color:green">
++Q5QwQM+y8/y2OzrnZAt63RRmmm8AHmO6RrIWhvmb47BcWofaehMGAitrEEz
+Oc4sn/Nn15P2/Ffch9X929gYqj2Bq9zFIbo9bTDBGvNgQ6mnPY7E/9nD9p6X
+</pre>
+
+<p>Encrypted Session key:</p>
+<pre style="color:green">
+ilLIn+VuSZYR4Xym0BTX0r/gKKMVfNBgRPIxuHhtFBEyisCWwhDxrDsHP/vU
+I9UqeqYQl67o+DcVWAcD0NUpCqtp2OH0s8TVn5Wac7g7n6MK7bPGCnschPfR
+</pre>
+
+<p>Recipient Public Key:</p>
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...<br/>-----END PGP PUBLIC KEY BLOCK-----
+</pre></section>
+    <section class="slide"><h3>OpenPGP</h3>
+<p>Encrypted Message:</p>
+<pre style="color:green">-----BEGIN PGP MESSAGE BLOCK-----
+xsBNBFJEx2kBCADzzfl2qJMPKHND7VFDJgDPc9U01kuzb1Mlo+wUm0YezfYQZbHn
+7ZaAiYXLw3hLzSVXnve3mva2vhxmFQQW4GovR9dysQ/i9jcTOwmwMyBWrIz1ncbp
+...<br/>-----END PGP MESSAGE BLOCK-----
+</pre>
+
+<p>Recipient Public Key:</p>
+<pre style="color:green">-----BEGIN PGP PUBLIC KEY BLOCK-----
+xsBNBFI/k+wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72
+wLxsqMt+lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp
+...<br/>-----END PGP PUBLIC KEY BLOCK-----
+</pre></section>
+    <section class="slide"><h3>Webmail w/ untrusted servers</h3>
+</section>
+    <section class="slide"><h3>Webmail w/ untrusted servers</h3>
 <p>Encrypt all of the things!</p>
 <ul>
 <li>Mail subject &amp; body</li>
 <li>Contacts</li>
 <li>Index blobs (future)</li>
 </ul>
-<p>Also, <code>Scrypt(&lt;PassPhrase&gt;)</code> for KDF<br />
-to encrypt user&#39;s <code>&lt;PrivateKey&gt;</code></p>
+<p>Also, store the encrypted private key on the server using <code>Scrypt(&lt;PassPhrase&gt;)</code></p>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Webmail w/ untrusted servers</h4>
+    <section class="slide"><h3>Webmail w/ untrusted servers</h3>
 <p>Can&#39;t trust the server,<br/>
 Can&#39;t trust the javascript.</p>
 <ul>
@@ -430,9 +541,10 @@ Can&#39;t trust the javascript.</p>
 <li>HTML App Cache</li>
 </ul>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Name Resolution</h4>
-<p>A user is identified by hir <code>&lt;PublicKey&gt;</code></p>
+    <section class="slide"><h3>Name Resolution</h3>
+</section>
+    <section class="slide"><h3>Name Resolution</h3>
+<p>Hi, I am:</p>
 <pre><code><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="comment">BEGIN</span> <span class="comment">PGP</span> <span class="comment">PUBLIC</span> <span class="comment">KEY</span> <span class="comment">BLOCK</span>-<span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span>
 <span class="comment">xsBNBFI/k</span>+<span class="comment">wBCADO3eL0Beu5Hqeot4aRTO3ijSD1ddkCiEpTfnd1pCG72E72</span>
 <span class="comment">wLxsqMt</span>+<span class="comment">lI3gVNxeje6eqFlc9K6PrP9hAScQKM0f6wp2NCqfdWmGk9NvTyVp</span>
@@ -450,33 +562,25 @@ Can&#39;t trust the javascript.</p>
 <span class="comment">=o8xa</span>
 <span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="comment">END</span> <span class="comment">PGP</span> <span class="comment">PUBLIC</span> <span class="comment">KEY</span> <span class="comment">BLOCK</span>-<span class="literal">-</span><span class="literal">-</span><span class="literal">-</span><span class="literal">-</span></code></pre>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Name Resolution (cont.)</h4>
-<p>A user is identified by hir <code>Hash(&lt;PublicKey&gt;)</code></p>
-<p><code>9b66b9f17380bfc04abf342f9df077b69713393e</code></p>
-<p>Or just the first 80 bits, in base32:</p>
-<p><code>tntlt4ltqc74asv7</code></p>
+    <section class="slide"><h3>Name Resolution</h3>
+<p>Hi, I am: <code>tntlt4ltqc74asv7@hashed.im</code></p>
 <p>Still hard to remember!</p>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Name Resolution (cont.)</h4>
-<p>How can resolve an address, <code>jaekwon@hashed.im</code><br/>
-  to <code>tntlt4ltqc74asv7</code>?</p>
+    <section class="slide"><h3>Name Resolution</h3>
+<p>Hi, I am: <code>jaekwon@hashed.im</code></p>
 <ul>
 <li>NameCoin?</li>
 <li>Public Key servers?</li>
 </ul>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Name Resolution (cont.)</h4>
-<p>An alternative solution</p>
+    <section class="slide"><h3>Name Resolution</h3>
 <ul>
 <li>1B addresses require &lt; 100Gb to store</li>
-<li>Distributed notary system!</li>
+<li>Distributed notary system</li>
 </ul>
+<p>Like Convergence.io</p>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Name Resolution (cont.)</h4>
+    <section class="slide"><h3>Name Resolution</h3>
 <ul>
 <li>Client has a list of trusted notaries,<br/>
 <code>hashed.im</code> &amp; <code>scramble.io</code></li>
@@ -487,26 +591,38 @@ Can&#39;t trust the javascript.</p>
 <li>Client makes a decision</li>
 </ul>
 </section>
-    <section class="slide"><h3>Scramble</h3>
-<h4>Open source &amp; federated</h4>
+    <section class="slide"><h3>Open source &amp; federated</h3>
+<ul>
+<li>What if Lavabit had been open source?</li>
+</ul>
+</section>
+    <section class="slide"><h3>Open source &amp; federated</h3>
 <ul>
 <li>What if Lavabit had been open source?</li>
 <li>Federation == Shutdown Resistance</li>
-<li>Federation allows for notary name resolution</li>
 </ul>
+</section>
+    <section class="slide"><h3>Open source &amp; federated</h3>
+<ul>
+<li>What if Lavabit had been open source?</li>
+<li>Federation == Shutdown Resistance</li>
+<li>Federation == Notary Perspectives</li>
+</ul>
+</section>
+    <section class="slide"><h3>Introducing, Scramble</h3>
+<p>It already exists</p>
+<p><a href="http://github.com/dcposch/scramble">http://github.com/dcposch/scramble</a></p>
+<p>Signup at <a href="https://hashed.im">https://hashed.im</a></p>
 </section>
     <section class="slide"><h3>Scramble + Future</h3>
 <ul>
+<li>Normal email compatibility</li>
 <li>Enigmail compatibility</li>
 <li>Search w/ encrypted indices</li>
-<li>Chat?</li>
-<li>FileSharing?</li>
+<li>Chat</li>
 </ul>
 </section>
     <section class="slide"><h3>Questions?</h3>
-<p>Sign up! <a href="https://hashed.im">https://hashed.im</a></p>
-<p>github: dcposch/scramble<br/>
-my fork: jaekwon/scramble</p>
 </section>
     <section class="slide"><div class="author">
   <h1 class="name">Jae Kwon</h1>

@@ -205,8 +205,7 @@ func LoadBox(address string, box string, offset, limit int) []EmailHeader {
 	log.Printf("Fetching %s for %s\n", box, address)
 
 	rows, err := db.Query("SELECT m.message_id, m.unix_time, "+
-		" m.from_email, m.to_email, m.cipher_subject, "+
-		" m.ancestor_message_ids, m.thread_id, "+
+		" m.from_email, m.to_email, m.cipher_subject, m.thread_id "+
 		" FROM email AS m INNER JOIN box AS b "+
 		" ON b.message_id = m.message_id "+
 		" WHERE b.address = ? and b.box=? "+
@@ -238,7 +237,6 @@ func rowsToHeaders(rows *sql.Rows) []EmailHeader {
 			&header.From,
 			&header.To,
 			&header.CipherSubject,
-			&header.AncestorMessageIDs,
 			&header.ThreadID,
 		)
 		if err != nil {
@@ -302,7 +300,8 @@ func LoadMessage(id string) Email {
 // This is used to compute the thread_id of an incoming email.
 // Returns threadIDs in the same order as messageIDs.
 // e.g. [<id1>, <id1>, "", "", <id2>, ...]
-func LoadThreadIDsForMessageIDs(messageIDs []string) []string {
+// messageIDs: an []interface{} of strings
+func LoadThreadIDsForMessageIDs(messageIDs []interface{}) []string {
 	messageIDsPH := "?"+strings.Repeat(",?", len(messageIDs)-1)
 	rows, err := db.Query("SELECT message_id, thread_id "+
 		"FROM email WHERE message_id IN ("+messageIDsPH+")",
@@ -318,7 +317,7 @@ func LoadThreadIDsForMessageIDs(messageIDs []string) []string {
 	}
 	threadIDs := []string{}
 	for _, messageID := range messageIDs {
-		threadIDs = append(threadIDs, lookup[messageID])
+		threadIDs = append(threadIDs, lookup[messageID.(string)])
 	}
 	return threadIDs
 }
@@ -329,7 +328,7 @@ func LoadThreadIDsForMessageIDs(messageIDs []string) []string {
 func AddMessageToBox(e *Email, address string, box string) {
 	_, err := db.Exec("INSERT INTO box "+
 		"(message_id, unix_time, thread_id, address, box) "+
-		"VALUES (?,?,?,?)",
+		"VALUES (?,?,?,?,?)",
 		e.MessageID,
 		e.UnixTime,
 		e.ThreadID,
@@ -440,19 +439,27 @@ func CheckoutOutbox(limit int) []BoxedEmail {
 
 // Mark box items as "outbox-sent" or "outbox-processing"
 func MarkOutboxAs(boxedEmails []BoxedEmail, newBox string) {
+	if len(boxedEmails) == 0 {
+		return
+	}
 	if newBox != "outbox-sent" && newBox != "outbox-processing" {
 		panic("MarkOutboxAs() cannot move emails to " + newBox)
 	}
-	boxedIds := []string{}
+	boxedIds := []interface{}{}
 	for _, boxedEmail := range boxedEmails {
 		boxedIds = append(boxedIds, strconv.FormatInt(boxedEmail.Id, 10))
 	}
 	boxedIdsPH := "?"+strings.Repeat(",?", len(boxedIds)-1)
 	_, err := db.Exec("UPDATE box SET box=?, unix_time=? WHERE "+
 		"id IN ("+boxedIdsPH+") AND box IN ('outbox', 'outbox-processing', 'outbox-sent') ",
-		newBox,
-		time.Now().Unix(),
-		boxedIds...
+		// For more information on this abomination, read
+		// https://groups.google.com/d/msg/golang-dev/yszLiYREbK4/sH1AWu23l18J
+		append([]interface{}{
+				newBox,
+				time.Now().Unix(),
+			},
+			boxedIds...
+		)...
 	)
 	if err != nil {
 		panic(err)

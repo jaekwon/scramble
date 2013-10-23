@@ -7,20 +7,26 @@ import (
 
 type EmailAddress struct {
 	Name string
-	Hash string
 	Host string
 }
 
 func (addr *EmailAddress) String() string {
-	if addr.Hash == "" {
-		return addr.Name+"@"+addr.Host
-	} else {
-		return addr.Name+"#"+addr.Hash+"@"+addr.Host
-	}
+	return addr.Name+"@"+addr.Host
 }
 
+// Return this address but with everything after '#' stripped from Name.
 func (addr *EmailAddress) StringNoHash() string {
+	if hashIdx := strings.Index(addr.Name, "#"); hashIdx != -1 {
+		return addr.Name[0:hashIdx]+"@"+addr.Host
+	}
 	return addr.Name+"@"+addr.Host
+}
+
+func (addr *EmailAddress) HashPart() string {
+	if hashIdx := strings.Index(addr.Name, "#"); hashIdx != -1 {
+		return addr.Name[hashIdx:]
+	}
+	return ""
 }
 
 // "foo@bar.com" -> EmailAddress
@@ -33,11 +39,11 @@ func ParseEmailAddress(addr string) EmailAddress {
 }
 
 func ParseEmailAddressSafe(addr string) (EmailAddress, bool) {
-	match := regexHashAddress.FindStringSubmatch(addr)
+	match := regexAddress.FindStringSubmatch(addr)
 	if match == nil {
 		return EmailAddress{}, false
 	}
-	return EmailAddress{match[1], match[2], match[3]}, true
+	return EmailAddress{match[1], match[2]}, true
 }
 
 // "foo@bar.com,baz@boo.com" -> []EmailAddress
@@ -61,7 +67,7 @@ func ParseAngledEmailAddresses(addrList string, delim string) EmailAddresses {
 	addrParts := strings.Split(addrList, delim)
 	addrs := make([]EmailAddress, 0)
 	for _, addrPart := range addrParts {
-		if addrPart[0] != "<" || addrPart[len(addrPart)-1] != ">" {
+		if addrPart[0:1] != "<" || addrPart[len(addrPart)-1:] != ">" {
 			log.Panicf("Invalid angled email address %s", addrPart)
 		}
 		addrPart = addrPart[1:len(addrPart)-1]

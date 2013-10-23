@@ -188,7 +188,7 @@ func publicKeysHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				pubKey := LoadPubKey(pubHash)
-				if addr.Hash == "" || pubHash == addr.Hash {
+				if addr.HashPart() == "" || pubHash == addr.HashPart() {
 					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{pubKey, ""}
 				} else {
 					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{pubKey, "Wrong hash for name"}

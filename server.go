@@ -72,18 +72,18 @@ func recoverAndLog(handler http.Handler) http.Handler {
 			}
 
 			// Finally, log.
-			durationMS := time.Since(begin).Nanoseconds / 1000
+			durationMS := time.Since(begin).Nanoseconds() / 1000
 			log.Printf("%s %s %v %v %s", r.RemoteAddr, r.Method, rww.Status, durationMS, r.URL)
 		}()
 	})
 }
 
 // Remember the status for logging
-type statusLoggingResponseWriter struct {
+type ResponseWriterWrapper struct {
    Status int
    http.ResponseWriter
 }
-func (w *statusLoggingResponseWriter) WriteHeader(status int) {
+func (w *ResponseWriterWrapper) WriteHeader(status int) {
   w.Status = status
   w.ResponseWriter.WriteHeader(status)
 }

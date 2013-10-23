@@ -32,7 +32,7 @@ type EmailHeader struct {
 // Represents a full email, header and body PGP encrypted.
 type Email struct {
 	EmailHeader
-	CipherBody       string
+	CipherBody         string
 	AncestorMessageIDs string
 }
 

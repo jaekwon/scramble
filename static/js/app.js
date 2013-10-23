@@ -900,7 +900,7 @@ function sendEmailUnencrypted(to, subject, body){
     // generate 160-bit (20 byte) message id
     // secure random generator, so it will be unique
     // TODO: Maybe we should hash the encrypted message bytes so that it is deterministic.
-    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))
+    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))+"@"+window.location.hostname
 
     // send our message
     var data = {

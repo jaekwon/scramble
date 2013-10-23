@@ -35,9 +35,8 @@ func validateHex(str string) string {
 	return str
 }
 func validateMessageID(str string) string {
-	if !regexHex.MatchString(str) || len(str) != 40 {
-		log.Panicf("Invalid Scramble email MessageID %s", str)
-	}
+	// TODO... at least ensure that there are no spaces or commas.
+	XXX
 	return str
 }
 func validateToken(str string) string {

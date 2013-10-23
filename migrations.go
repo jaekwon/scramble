@@ -17,6 +17,7 @@ var migrations = []func() error{
 	migrateCreateNameResolution,
 	migrateAddUserEmailAddress,
 	migrateMakeNameResolutionUnique,
+	migrateEmailThreading,
 	migrateBoxAddForeignKey,
 }
 
@@ -319,6 +320,21 @@ func migrateMakeNameResolutionUnique() error {
 	_, err := db.Exec(`ALTER TABLE name_resolution DROP INDEX host`)
 	if err != nil { return err }
 	_, err =  db.Exec(`ALTER TABLE name_resolution ADD UNIQUE INDEX (host, name)`)
+	return err
+}
+
+func migrateEmailThreading() error {
+	_, err := db.Exec(`ALTER TABLE email `+
+		`MODIFY message_id VARCHAR(255) NOT NULL, `+
+		`ADD COLUMN ancestor_message_ids VARCHAR(10240), `+
+		`ADD COLUMN thread_id VARCHAR(255) NOT NULL`)
+	if err != nil { return err }
+	_ ,err = db.Exec(`UPDATE TABLE email SET thread_id = message_id`)
+	if err != nil { return err }
+	_, err = db.Exec(`ALTER TABLE box `+
+		`MODIFY message_id VARCHAR(255) NOT NULL, `+
+		`ADD COLUMN thread_id VARCHAR(255) NOT NULL`)
+	_, err = db.Exec(`UPDATE TABLE box SET thread_id = message_id`)
 	return err
 }
 

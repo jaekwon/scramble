@@ -97,7 +97,7 @@ func smtpSend(msg *Email) error {
 	}
 }
 
-const smtpTemplate = `Message-ID: <%s@%s>
+const smtpTemplate = `Message-ID: <%s>%s
 From: <%s>
 To: %s
 Subject: Encrypted message
@@ -105,11 +105,28 @@ Subject: Encrypted message
 %s
 %s`
 
+const threadHeadersTemplate = `
+In-Reply-To: <%s>
+X-Scramble-Thread-ID: <%s>
+References: %s`
+
 func smtpSendTo(email *Email, smtpHost string, addrs EmailAddresses) error {
+	// Construct In-Reply-To/References/X-Scramble-Thread-ID headers
+	var threadHeaders = ""
+	var ancestorMessageIDs = ParseAngledEmailAddresses(email.ancestorMessageIDs, ",")
+	if len(ancestorMessageIDs) > 0 {
+		threadHeaders = fmt.Sprintf(threadHeadersTemplate,
+			ancestorMessageIDs[len(ancestorMessageIDs)-1],
+			email.ThreadID,
+			email.AncestorMessageIDs,
+		)
+	}
+	// Fill in smtpTemplate
 	msg := fmt.Sprintf(smtpTemplate,
-		email.MessageID, GetConfig().SmtpMxHost,
+		email.MessageID,
+		threadHeaders,
 		email.From,
-		ParseEmailAddresses(email.To).AngledString(),
+		ParseEmailAddresses(email.To).AngledString(","),
 		email.CipherSubject,
 		email.CipherBody)
 	log.Printf("SMTP: sending to %s\n", smtpHost)

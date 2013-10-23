@@ -25,11 +25,19 @@ func (addr *EmailAddress) StringNoHash() string {
 
 // "foo@bar.com" -> EmailAddress
 func ParseEmailAddress(addr string) EmailAddress {
-	match := regexHashAddress.FindStringSubmatch(addr)
-	if match == nil {
+	parsed, ok := ParseEmailAddressSafe(addr)
+	if !ok {
 		log.Panicf("Invalid email address %s", addr)
 	}
-	return EmailAddress{match[1], match[2], match[3]}
+	return parsed
+}
+
+func ParseEmailAddressSafe(addr string) (EmailAddress, bool) {
+	match := regexHashAddress.FindStringSubmatch(addr)
+	if match == nil {
+		return EmailAddress{}, false
+	}
+	return EmailAddress{match[1], match[2], match[3]}, true
 }
 
 // "foo@bar.com,baz@boo.com" -> []EmailAddress
@@ -40,6 +48,23 @@ func ParseEmailAddresses(addrList string) EmailAddresses {
 	addrParts := strings.Split(addrList, ",")
 	addrs := make([]EmailAddress, 0)
 	for _, addrPart := range addrParts {
+		addrs = append(addrs, ParseEmailAddress(addrPart))
+	}
+	return addrs
+}
+
+// "<foo@bar.com>,<baz@boo.com>" -> []EmailAddress
+func ParseAngledEmailAddresses(addrList string, delim string) EmailAddresses {
+	if addrList == "" {
+		return nil
+	}
+	addrParts := strings.Split(addrList, delim)
+	addrs := make([]EmailAddress, 0)
+	for _, addrPart := range addrParts {
+		if addrPart[0] != "<" || addrPart[len(addrPart)-1] != ">" {
+			log.Panicf("Invalid angled email address %s", addrPart)
+		}
+		addrPart = addrPart[1:len(addrPart)-1]
 		addrs = append(addrs, ParseEmailAddress(addrPart))
 	}
 	return addrs
@@ -93,11 +118,11 @@ func (addrs EmailAddresses) String() string {
 }
 
 // -> "<foo@bar.com>,<baz@boo.com>"
-func (addrs EmailAddresses) AngledString() string {
+func (addrs EmailAddresses) AngledString(delim string) string {
 	if len(addrs) == 0 {
 		return ""
 	}
-	return "<"+strings.Join(addrs.Strings(), ">,<")+">"
+	return "<"+strings.Join(addrs.Strings(), ">"+delim+"<")+">"
 }
 
 // -> ["foo@bar.com","baz@boo.com"]

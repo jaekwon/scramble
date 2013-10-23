@@ -358,20 +358,13 @@ func deliverMailLocally(client *Client) error {
 		return err
 	}
 
-	messageID := parsed.Header.Get("Message-ID")
-	if messageID == "" { // generate a message id
+	messageIDStr := parsed.Header.Get("Message-ID")
+	messageID, ok := ParseAngledEmailAddressSafe(messageIDStr)
+	if !ok {
+		// generate a message id
 		bytes := &[20]byte{}
 		rand.Read(bytes[:])
-		messageID = hex.EncodeToString(bytes[:])
-	} else {
-		re, _ := regexp.Compile(`<(.+?)>`)
-		if matched := re.FindStringSubmatch(messageID); len(matched) > 1 {
-			messageID = strings.Trim(matched[1], " ")
-		}
-		// trim messageID, we only allow so many characters.
-		if len(messageID) > 40 {
-			messageID = messageID[:40]
-		}
+		messageID = EmailAddress{hex.EncodeToString(bytes[:]), "", GetConfig().SmtpMxHost}
 	}
 
 	toList, err := parsed.Header.AddressList("To")
@@ -390,6 +383,15 @@ func deliverMailLocally(client *Client) error {
 		toStrList = append(toStrList, to.Address)
 	}
 
+	// [<thread_id>?,...,<grandparent_message_id>,<parent_message_id>]
+	// Should start with the thread id, but it may have been truncated away.
+	// See: http://www.jwz.org/doc/threading.html
+	ancestorMessageIDs := sanitizeAncestorMessageIDs(parsed.Header)
+
+	// Generally the ancestorMessageIDs[0], we do a lookup in our db
+	//  to see if we can find an older ancestor.
+	threadID := computeThreadID(ancestorMessageIDs)
+
 	bodyBytes, err := ioutil.ReadAll(parsed.Body)
 	if err != nil { return err }
 	cipherPackets := regexSMTPTemplatep.FindAllString(string(bodyBytes), -1)
@@ -398,17 +400,19 @@ func deliverMailLocally(client *Client) error {
 	}
 
 	email := new(Email)
-	email.MessageID = messageID
+	email.MessageID = messageID.String()
 	email.UnixTime = client.time
 	email.From = client.mailFrom
 	email.To = strings.Join(toStrList, ",")
 	email.CipherSubject = cipherPackets[0]
 	email.CipherBody = cipherPackets[1]
+	email.ThreadID = threadID
+	email.AncestorMessageIDs = ancestorMessageIDs.AngledString(" ")
 
 	// TODO: consider if transactions are required.
 	// TODO: saveMessage may fail if messageId is not unique.
 	SaveMessage(email)
-	log.Println("Saved new email " + messageID)
+	log.Println("Saved new email " + messageID.String())
 
 	// add to inbox locally
 	for _, addr := range client.rcptTo {
@@ -547,4 +551,19 @@ func md5hex(str string) string {
 	h.Write([]byte(str))
 	sum := h.Sum([]byte{})
 	return hex.EncodeToString(sum)
+}
+
+func sanitizeAncestorMessageIDs(headers mail.Header) EmailAddresses {
+	inReplyToStr := headers.Get("In-Reply-To")
+	referencesStr := headers.Get("References")
+	inReplyTo, ok := ParseAngledEmailAddressSafe(inReplyToStr)
+	references := ParseAngledEmailAddresses(referencesStr, " ")
+	if ok && (len(parsedRefs) == 0 || parsedRefs[len(parsedRefs)-1] != inReplyTo) {
+		references = append(references, inReplyTo)
+	}
+	return references
+}
+
+func computeThreadID(ancestorMessageIDs EmailAddresses) string {
+	threadIDs = LoadThreadIDsForMessageIDs(
 }

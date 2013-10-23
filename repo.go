@@ -205,7 +205,8 @@ func LoadBox(address string, box string, offset, limit int) []EmailHeader {
 	log.Printf("Fetching %s for %s\n", box, address)
 
 	rows, err := db.Query("SELECT m.message_id, m.unix_time, "+
-		" m.from_email, m.to_email, m.cipher_subject "+
+		" m.from_email, m.to_email, m.cipher_subject, "+
+		" m.ancestor_message_ids, m.thread_id, "+
 		" FROM email AS m INNER JOIN box AS b "+
 		" ON b.message_id = m.message_id "+
 		" WHERE b.address = ? and b.box=? "+
@@ -236,7 +237,10 @@ func rowsToHeaders(rows *sql.Rows) []EmailHeader {
 			&header.UnixTime,
 			&header.From,
 			&header.To,
-			&header.CipherSubject)
+			&header.CipherSubject,
+			&header.AncestorMessageIDs,
+			&header.ThreadID,
+		)
 		if err != nil {
 			panic(err)
 		}
@@ -257,14 +261,18 @@ func rowsToHeaders(rows *sql.Rows) []EmailHeader {
 func SaveMessage(e *Email) {
 	_, err := db.Exec("insert into email "+
 		"(message_id, unix_time, from_email, to_email, "+
-		" cipher_subject, cipher_body) "+
-		"values (?,?,?,?,?,?)",
+		" cipher_subject, cipher_body, "+
+		" ancestor_message_ids, thread_id) "+
+		"values (?,?,?,?,?,?,?,?)",
 		e.MessageID,
 		e.UnixTime,
 		e.From,
 		e.To,
 		e.CipherSubject,
-		e.CipherBody)
+		e.CipherBody,
+		e.AncestorMessageIDs,
+		e.ThreadID,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -290,17 +298,44 @@ func LoadMessage(id string) Email {
 	return email
 }
 
+// Load thread_ids given message_ids.
+// This is used to compute the thread_id of an incoming email.
+// Returns threadIDs in the same order as messageIDs.
+// e.g. [<id1>, <id1>, "", "", <id2>, ...]
+func LoadThreadIDsForMessageIDs(messageIDs []string) []string {
+	messageIDsPH := "?"+strings.Repeat(",?", len(messageIDs)-1)
+	rows, err := db.Query("SELECT message_id, thread_id "+
+		"FROM email WHERE message_id IN ("+messageIDsPH+")",
+		messageIDs...
+	)
+	if err != nil { panic(err) }
+	lookup := map[string]string{}
+	for rows.Next() {
+		var messageID, threadID string
+		err := rows.Scan(&messageID, &threadID)
+		if err != nil { panic(err) }
+		lookup[messageID] = threadID
+	}
+	threadIDs := []string{}
+	for _, messageID := range messageIDs {
+		threadIDs = append(threadIDs, lookup[messageID])
+	}
+	return threadIDs
+}
+
 // Associates a message to a box (e.g. inbox, archive)
 // Also used to queue outbox messages, in which case
 //  the address is just the host portion.
 func AddMessageToBox(e *Email, address string, box string) {
-	_, err := db.Exec("insert into box "+
-		"(message_id, unix_time, address, box) "+
-		"values (?,?,?,?)",
+	_, err := db.Exec("INSERT INTO box "+
+		"(message_id, unix_time, thread_id, address, box) "+
+		"VALUES (?,?,?,?)",
 		e.MessageID,
 		e.UnixTime,
+		e.ThreadID,
 		address,
-		box)
+		box,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -408,15 +443,16 @@ func MarkOutboxAs(boxedEmails []BoxedEmail, newBox string) {
 	if newBox != "outbox-sent" && newBox != "outbox-processing" {
 		panic("MarkOutboxAs() cannot move emails to " + newBox)
 	}
-	boxedIds := []string{} // Do we really need to convert to strings? :(
+	boxedIds := []string{}
 	for _, boxedEmail := range boxedEmails {
 		boxedIds = append(boxedIds, strconv.FormatInt(boxedEmail.Id, 10))
 	}
+	boxedIdsPH := "?"+strings.Repeat(",?", len(boxedIds)-1)
 	_, err := db.Exec("UPDATE box SET box=?, unix_time=? WHERE "+
-		"id IN (?) AND box IN ('outbox', 'outbox-processing', 'outbox-sent') ",
+		"id IN ("+boxedIdsPH+") AND box IN ('outbox', 'outbox-processing', 'outbox-sent') ",
 		newBox,
 		time.Now().Unix(),
-		strings.Join(boxedIds, ","),
+		boxedIds...
 	)
 	if err != nil {
 		panic(err)

@@ -189,7 +189,7 @@ color:red;
 margin:8px 0;
 font-weight:bold;
 }
-#sidebar .email, #sidebar .pubHash {
+#sidebar .address, #sidebar .pubHash {
 font:9px monospace;
 margin:8px 0;
 }
@@ -231,18 +231,18 @@ text-align: center;
 
 
 /* SINGLE EMAIL */
-#content.email .to {
+div.email .to {
 vertical-align:text-top;
 display:inline-block;
 }
-#content.email pre {
+div.email pre {
 margin:10px 0;
 white-space:pre-wrap;
 }
-#content.email .replyForwardButtons {
+div.email .replyForwardButtons {
 margin:10px 0;
 }
-#archiveButton,#moveToInboxButton {
+.archiveButton,.moveToInboxButton {
 margin:0 10px;
 }
 

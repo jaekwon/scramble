@@ -57,7 +57,6 @@ var SCRYPT_PARAMS = {
 //
 
 var viewState = {}
-viewState.email = null // plaintext subject, body, etc of the currently opened email
 viewState.contacts = null // plaintext address book, must *always* be good data.
 
 
@@ -94,11 +93,11 @@ var keyMap = {
         "s":function(){loadDecryptAndDisplayBox("sent")},
         "a":function(){loadDecryptAndDisplayBox("archive")}
     },
-    "r":emailReply,
-    "a":emailReplyAll,
-    "f":emailForward,
-    "y":function(){emailMove("archive")},
-    "d":emailDelete,
+    "r":function(){emailReply(viewState.email)},
+    "a":function(){emailReplyAll(viewState.email)},
+    "f":function(){emailForward(viewState.email)},
+    "y":function(){emailMove(viewState.email, "archive")},
+    "d":function(){emailDelete(viewState.email)},
     27:closeModal // esc key
 }
 
@@ -460,33 +459,41 @@ function readPrevEmail(){
 //
 
 function bindEmailEvents() {
-    $("#replyButton").click(emailReply)
-    $("#replyAllButton").click(emailReplyAll)
-    $("#forwardButton").click(emailForward)
-    $("#deleteButton").click(emailDelete)
+    // This is a helper that gets the relevant email data
+    //  by finding the enclosed div.email
+    var withEmail = function(cb) {
+        return function() {
+            var emailDiv = $(this).closest(".email");
+            cb(emailDiv.data("email"));
+        };
+    };
 
-    $("#archiveButton").click(function(){emailMove("archive")})
-    $("#moveToInboxButton").click(function(){emailMove("inbox")})
+    $(".replyButton").click(withEmail(emailReply))
+    $(".replyAllButton").click(withEmail(emailReplyAll))
+    $(".forwardButton").click(withEmail(emailForward))
+    $(".deleteButton").click(withEmail(emailDelete))
 
-    $("#enterFromNameButton").click(function(){
-        var addr = viewState.email.from
-        var name = prompt("Contact name for "+addr)
+    $(".archiveButton").click(withEmail(function(email){emailMove(email, "archive")}))
+    $(".moveToInboxButton").click(withEmail(function(email){emailMove(email, "inbox")}))
+
+    $(".enterFromNameButton").click(withEmail(function(email){
+        var name = prompt("Contact name for "+email.from);
         if(name){
-            getPubHash(viewState.email.from, function(pubHash, error) {
+            getPubHash(email.from, function(pubHash, error) {
                 if (error) {
-                    alert(error)
-                    return
+                    alert(error);
+                    return;
                 }
                 var contacts = addContacts(
                     viewState.contacts,
-                    {name:name, address:addr, pubHash:pubHash}
-                )
+                    {name:name, address:email.from, pubHash:pubHash}
+                );
                 trySaveContacts(contacts, function() {
                     displayStatus("Contact saved")
-                })
-            })
+                });
+            });
         }
-    })
+    }));
 }
 
 // Takes a subject-line <li>, selects it, shows the full email
@@ -510,7 +517,10 @@ function displayEmail(target){
         if (newPubHashes.length > 0) {
             trySaveContacts(addContacts(viewState.contacts, newPubHashes))
         }
-        $.get("/email/"+target.data("id"), function(cipherBody){
+        $.get("/email/"+target.data("msgId"), function(data){
+            var cipherBody  = data.cipherBody;
+            var ancestorIds = data.ancestorIds;
+            var threadId    = data.threadId;
             getPrivateKey(function(privateKey){
                 var plaintextBody = tryDecodePgp(cipherBody, privateKey, fromKey)
                 // extract subject on the first line
@@ -534,8 +544,8 @@ function displayEmail(target){
                         name: contactNameFromAddress(addr)
                     }
                 })
-                viewState.email = {
-                    id:          target.data("id"),
+                var email = {
+                    msgId:       target.data("msgId"),
                     time:        new Date(target.data("time")*1000),
 
                     from:        trimToLower(target.data("from")),
@@ -543,27 +553,31 @@ function displayEmail(target){
                     to:          target.data("to"),
                     toAddresses: toAddresses,
 
+                    ancestorIds: ancestorIds,
+                    threadId:    threadId,
+
                     subject:     subject,
                     body:        plaintextBody,
 
                     box:         target.data("box")
-                }
-                var html = render("email-template", viewState.email)
-                $("#content").attr("class", "email").html(html)
-                bindEmailEvents()
+                };
+                viewState.email = email; // for keyboard shortcuts
+                var elEmail = $(render("email-template", email)).data("email", email);
+                var elThread = $(render("thread-template"));
+                elThread.find("#thread-emails").append(elEmail);
+                $("#content").attr("class", "thread").empty().append(elThread);
+                bindEmailEvents();
             })
-        }, "text")
+        }, "json")
     })
 }
 
-function emailReply(){
-    var email = viewState.email
+function emailReply(email){
     if(!email) return
-    displayCompose(email.from, email.subject, "")
+    displayComposeInline(email, email.from, email.subject, "")
 }
 
-function emailReplyAll(){
-    var email = viewState.email
+function emailReplyAll(email){
     if(!email) return
     var allRecipientsExceptMe = email.toAddresses
         .filter(function(addr){
@@ -575,19 +589,17 @@ function emailReplyAll(){
             return addr.name ? addr.name : addr.address
         })
         .concat([email.from])
-    displayCompose(allRecipientsExceptMe.join(","), email.subject, "")
+    displayComposeInline(email, allRecipientsExceptMe.join(","), email.subject, "")
 }
 
-function emailForward(){
-    var email = viewState.email
+function emailForward(email){
     if(!email) return
-    displayCompose("", email.subject, email.body)
+    displayComposeInline(email, "", email.subject, email.body)
 }
 
-function emailDelete(){
-    if(!viewState.email) return;
+function emailDelete(email){
     if(!confirm("Are you sure you want to delete this email?")) return;
-    var msgId = viewState.email.id
+    var msgId = email.msgId
     $.ajax({
         url: '/email/'+msgId,
         type: 'DELETE',
@@ -604,9 +616,8 @@ function emailDelete(){
     })
 }
 
-function emailMove(box){
-    if(!viewState.email) return
-    var msgId = viewState.email.id
+function emailMove(email, box){
+    var msgId = email.msgId
     $.ajax({
         url: '/email/'+msgId,
         type: 'PUT',
@@ -632,13 +643,17 @@ function emailMove(box){
 // COMPOSE
 //
 
-function bindComposeEvents() {
+function bindComposeEvents(threadId, ancestorIds) {
     $("#sendButton").click(function(){
+        // generate 160-bit (20 byte) message id
+        // secure random generator, so it will be unique
+        var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))+"@"+window.location.hostname
+        threadId = threadId || msgId;
+        ancestorIds = ancestorIds || "";
         var subject = $("#subject").val()
         var to = $("#to").val()
         var body = $("#body").val()
-
-        sendEmail(to, subject, body)
+        sendEmail(msgId, threadId, ancestorIds, to, subject, body)
     })
 }
 
@@ -658,7 +673,22 @@ function displayCompose(to, subject, body){
     bindComposeEvents()
 }
 
-function sendEmail(to,subject,body){
+function displayComposeInline(email, to, subject, body){
+    // render compose form into #content
+    var html = render("compose-template", {
+        hideSubject:true,
+        to:to,
+        subject:subject,
+        body:body
+    });
+    $("#thread-compose").empty().html(html);
+    var newAncestorIds = email.ancestorIds ?
+        email.ancestorIds+" <"+email.msgId+">" :
+        "<"+email.msgId+">";
+    bindComposeEvents(email.threadId, newAncestorIds);
+}
+
+function sendEmail(msgId, threadId, ancestorIds, to, subject, body){
     // validate email addresses
     var toAddresses = to.split(",").map(trimToLower)
     if (toAddresses.length == 0) {
@@ -721,10 +751,10 @@ function sendEmail(to,subject,body){
         if(missingHashes.length > 0){
             if(confirm("Could not find public keys for: "+missingHashes.join(", ")
                 +" \nSend unencrypted to all recipients?")){
-                sendEmailUnencrypted(to, subject, body);
+                sendEmailUnencrypted(msgId, threadId, ancestorIds, to, subject, body);
             }
         } else {
-            sendEmailEncrypted(pubKeys, subject, body);
+            sendEmailEncrypted(msgId, threadId, ancestorIds, pubKeys, subject, body);
         }
     })
 
@@ -857,11 +887,7 @@ function lookupPublicKeys(addresses, cb) {
 }
 
 // addrPubKeys: {toAddress: <pubKey>}
-function sendEmailEncrypted(addrPubKeys,subject,body){
-    // generate 160-bit (20 byte) message id
-    // secure random generator, so it will be unique
-    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))+"@"+window.location.hostname
-
+function sendEmailEncrypted(msgId, threadId, ancestorIds, addrPubKeys, subject, body){
     // Get the private key so we can sign the encrypted message
     getPrivateKey(function(privateKey) {
         // Get the public key so we can also read it in the sent box
@@ -879,45 +905,37 @@ function sendEmailEncrypted(addrPubKeys,subject,body){
 
             // send our message
             var data = {
-                msgId:msgId,
-                // box: box, TODO should always send to recipient "inbox" & sender "sent" box.
-                // pubHashTo: pubHash,
-                to: Object.keys(addrPubKeys).join(","),
+                msgId:         msgId,
+                threadId:      threadId,
+                ancestorIds:   ancestorIds,
+                to:            Object.keys(addrPubKeys).join(","),
                 cipherSubject: cipherSubject,
-                cipherBody: cipherBody
+                cipherBody:    cipherBody
             }
-            $.post("/email/", data, function(){
-                displayStatus("Sent")
-                displayCompose()
-            }).fail(function(xhr){
-                alert("Sending failed: "+xhr.responseText)
-            })
+            sendEmailPost(data);
         })
     })
 }
 
-function sendEmailUnencrypted(to, subject, body){
-    // generate 160-bit (20 byte) message id
-    // secure random generator, so it will be unique
-    // TODO: Maybe we should hash the encrypted message bytes so that it is deterministic.
-    var msgId = bin2hex(openpgp_crypto_getRandomBytes(20))+"@"+window.location.hostname
-
+function sendEmailUnencrypted(msgId, threadId, ancestorIds, to, subject, body){
     // send our message
     var data = {
-        msgId:msgId,
-        to: to,
-        subject: subject,
-        body: body
-    }
-    sendEmailPost(data)
+        msgId:         msgId,
+        threadId:      threadId,
+        ancestorIds:   ancestorIds,
+        to:            to,
+        subject:       subject,
+        body:          body
+    };
+    sendEmailPost(data);
 }
 
 function sendEmailPost(data) {
     $.post("/email/", data, function(){
-        displayStatus("Sent")
-        displayCompose()
+        displayStatus("Sent");
+        displayCompose();
     }).fail(function(xhr){
-        alert("Sending failed: "+xhr.responseText)
+        alert("Sending failed: "+xhr.responseText);
     })
 }
 
@@ -942,8 +960,8 @@ function displayContacts(){
 
 function bindContactsEvents(){
     $(".contacts li .deleteButton").click(deleteRow)
-    $("#addContactButton").click(newRow)
-    $("#saveContactsButton").click(function(){
+    $(".addContactButton").click(newRow)
+    $(".saveContactsButton").click(function(){
         var rows = $(".contacts li")
         var contacts = []
         var needResolution = {} // need to find pubhash before saving
@@ -1357,102 +1375,37 @@ function verifyNotaryResponses(notaryKeys, addresses, notaryResults) {
 // cb: function(notaries), notaries: {<host>:<publicKey>, ...}
 function loadNotaries(cb) {
     cb({
-        "hashed.im": // 4gjgpocrvdx4cqnb
+        "local.hashed.im":
             openpgp.read_publicKey(
                 "-----BEGIN PGP PUBLIC KEY BLOCK-----\n"+
                 "\n"+
-                "xsBNBFJLk4EBCAC4nrwXquYcsFdixa/ibyqRMivsZiqurfAViNtPdVK+p10YAFkK\n"+
-                "GQIi+E4p05k1CyDbHFUChouB+cQk2fSteLbb3VBND91mwixxElcuMVHOhDtObYod\n"+
-                "ND++RgwZZJ+OWG9M0zKQxGWBSSiaH2PHfofEmg1rRD7cU+DJPLkuDbG7OMrS3ayW\n"+
-                "g4qgXGHfsypR/1R7cytta7l8lCRSJOJnE4MSzVqkg5LU/TbAlI6GFvz1j0MAuPp/\n"+
-                "wqnXaGJAOvCtcKSHbtTkhdWdg+/IQkkh1u3TOqIZ3zUg/MiCdg5inoFuW5UIJe2Z\n"+
-                "KvEPNLylVjRKxuOzw47IjwlHFIK/Rg1FVtOTABEBAAHNQU5vdGFyeSAoTm90YXJ5\n"+
-                "IGZvciBoYXNoZWQuaW0gU2NyYW1ibGUgU2VydmVyKSA8c3VwcG9ydEBoYXNoZWQu\n"+
-                "aW0+wsBiBBMBCAAWBQJSS5OBCRCgZUoGo32kEAIbAwIZAQAAOwoIACRIIXmK5C3n\n"+
-                "EdNsGZeIeIT9W/1ip68m4VciWfhzWSipRVtjKyTFDS0lFx9I5kpNNA57+8dIWwCh\n"+
-                "JaY2Tz4h4lAOEhbp1lLQB+SITqnQsfRBpxvtVCs5LeRZ/3BcCPAIlcVyqHAkuFCx\n"+
-                "SHTzpxLvx3dklxuPn7+RnWtfpCwIMjUUHod6mQxVFXkZxom44IMWYGQmLKF416zj\n"+
-                "0Jg/JGmSKXMiUSKV2gIPk98Wkz4ab3xhblAbCalK2IAmAkA1QBbhAwqIPAA5rF0d\n"+
-                "zZ867WAMTFqiFQ0nipfE/s0opBokNmV/v9881yQ3VtM8PoPfoDX/zjXiETSHhPhF\n"+
-                "fkBl+ISqgqvOwE0EUkuTgQEIANvgLWvl0hjbJ6Qo7SC9AlVirgA1tdsL7eGNZJDJ\n"+
-                "uGzyhcFGubXQA0TDZl3bdUqCWCWwqNHB4hTSxink75Akfl3R4Vob60eOm3QYccPI\n"+
-                "giN9PB0Mt0ixSIbJ3rB/qAV4ZH4Fty2zthbxmqNhsYQBZ75IydQBUwjChD2Shs1t\n"+
-                "BQSreB+G95sf6vw0EnjdfpUuy0Aw38gHAGNr05Szep7OQ9Mf3h+9cszDpPVyNDU8\n"+
-                "xawQYdMJlVCgAkmSpRbCFIuGanze4ViLrmkhPHbzedDeLxHzq3GxAG2WeGspPLS+\n"+
-                "HDr3kGJisHQ4bPRcoPn16xEphCqFLrrUmQ1ErRvCmduUHFcAEQEAAcLAXwQYAQgA\n"+
-                "EwUCUkuTgQkQoGVKBqN9pBACGwwAAGv+CACaSfCTIKPhv35dBQSyZI7j7h/Fq6It\n"+
-                "opBqeqTEPq8Nz7tHE3b5bnRx0uLEv/gaGRr93fUJU5jdA+kQRp9AEa/wwcFu58VC\n"+
-                "vISKdmcZetT6D+hbNqFGTor01rQcO+MSTNFi9jB8AQx7wYKSI3WugsTBAuifzp6E\n"+
-                "N+e1s+ADMuAk9e92KNaX3i/2loexfB5f486th7+/ALNo2G4I2SrPFIq5GVNixOkf\n"+
-                "vlUab6/0EUC+d25//P3PPgqmNPyEYNrI1fYtqn7VYxa0jycsLOVCd/ak/SwqIlUo\n"+
-                "rk3ZF3pZKAwV5UM2IQSgS0fshNrDpuMkRxscv/KYW+tVqYeP8UX1r74k\n"+
-                "=J+9O\n"+
-                "-----END PGP PUBLIC KEY BLOCK-----"
-            ),
-        /*"test.scramble.io":
-            openpgp.read_publicKey(
-                "-----BEGIN PGP PUBLIC KEY BLOCK-----\n"+
-                "\n"+
-                "xsBNBFJc8kEBCADAcboo0fUDW7oyF18TxSA2sROfJrg186xdHkp/enYjHzHRs2vw\n"+
-                "+Bs65Pp6Zug+0+BgoJHbpt7fNlkYchYvaySyAAmGzR6MtPrGR3VBhvslEkbHGW9J\n"+
-                "uy0jKs5o1EcrYi9aviUsispz7tsOJszcfNLDCpIf3zbmXV3RNJ5G+tHIuaG1D+Mz\n"+
-                "MkF6UO1sgwzG6ES36yaCBedFzzEwBi7At7CSTAGNV0r1ocAi/zkUDvGgpKvvf4lA\n"+
-                "Le9kuAuT7ozDPGJGwnPvFpjNxt53OPAegDKHPLVB9ZNaY/Mr9ee5ov3Pl5J7z1JT\n"+
-                "qc9RG6Mtlz15UQD1wEzZoEJRJJ+RwUTt8p4PABEBAAHNT05vdGFyeSAoTm90YXJ5\n"+
-                "IGZvciB0ZXN0LnNjcmFtYmxlLmlvIFNjcmFtYmxlIFNlcnZlcikgPHN1cHBvcnRA\n"+
-                "dGVzdC5zY3JhbWJsZS5pbz7CwGIEEwEIABYFAlJc8kEJEH2a1kplMK9TAhsDAhkB\n"+
-                "AADmkggAmGa9aWfHkiRWx3xixJNYDmqzVtfiYs46n2tseiVT6SPaythVsbYNTw2w\n"+
-                "M2711CF42IpJZpTUSUQ45zIrQQsNRwbwKjh8g5dCkngRfcDykDRdjMbUmF17/LLp\n"+
-                "aCccv70QVPaok/TgLr5QPPYr4OdR2pgyNezjGuHOrlrSQoViXhyD/h91vATh7d2G\n"+
-                "m6QkrAt0dI7QNWegVpSfuk9yXTKnBign2mrHc+HM107RYE0WK/oqy70Fa/GeqHE5\n"+
-                "5KwS3kLWu38qYnAYw5bpwNdOtl98BM89M6Unp3wq2I4dHj9NKskLNwkCF0cA9vaI\n"+
-                "bIw9faDwd9WW5ou1GAT0f/xMEKXbjs7ATQRSXPJBAQgAxk2m0pXwCifo2vKQnnyg\n"+
-                "LBt86B91TN2G1yfbigLmRmW15Z+fNuL5AuIz4eYZz6M0hxSQ0lhgEzGjDgIUaUAi\n"+
-                "6oCoqf+aTT978KkVEExZR+p/v3hqxwjtDc6q9OAjWCrXpXcPsIfDYGKCDt1Mx802\n"+
-                "Gqzw8dBkoy4PnQ6OMqUYnL1vQFui2nrksfrQCtTIlmsICW16frwLI2nPDrwY+GUi\n"+
-                "n3UoKGoT5JCXVPQ4sdDbgzJoqGJwe1JMls/+vfPaz1r0jOF/a3Ovau8vOvWSdodk\n"+
-                "L2db8HxfIbaMj+zBb6Hume/KdWKiJZ+Xv9ZnqnmjVl+TIz1ncqnfJWpJ5j/cSGsk\n"+
-                "CwARAQABwsBfBBgBCAATBQJSXPJBCRB9mtZKZTCvUwIbDAAAJKMIAFhG3a6upAxC\n"+
-                "PjCFOKV1L+z8F3N6HEQJBmwuwmWaIj6RhvnWdqBMkjmcxclAvuM9rzYZhrE0XjqK\n"+
-                "kZUrJhnCRCmLfWtA6SZE/C65FdCdIZPB04BmIW6MLEOL3+HleB5LD0v6Exx4KvFN\n"+
-                "e0clu0m0H+HxvrtnhdDaAEh2cdPZTiOlrbJ3oXwk9B1j/N1AJIqE5RSrrrOXrdl/\n"+
-                "3g3j/nGEf0hqhjPmB7kafR7ZbP78ipV1ENraoafk3RtKNKuZI5+2mdzvYYIiRTcH\n"+
-                "YE6g+T3KLPalnjqp3RppJ48pCH8bs/ZzeEGVrjDPcSscC5+96FmFvm064fOdSz7m\n"+
-                "/YAMYP4dUiE=                                                    \n"+
-                "=Mt/n                                                           \n"+
-                "-----END PGP PUBLIC KEY BLOCK-----"
-            ),*/
-        "dev.hashed.im":
-            openpgp.read_publicKey(
-                "-----BEGIN PGP PUBLIC KEY BLOCK-----\n"+
-                "\n"+
-                "xsBNBFJM2MQBCAC+6XtfSNnub2S3OAUPCPVkQ+5FHQ1BKBft1R1rFlhsBYnBFp9O\n"+
-                "9mOG945gkq6tF3cW5IEOrHbTkyB3aHzunoU90AIE5r6FT/9d6BrSU68SdDGimYmd\n"+
-                "32UnIZpAYEBxOkVxKH1/qD1SBjqqFjCEfUNVfb+Yrtmpu+X7ZIOPsQvVG49Fm9jz\n"+
-                "Ec8czgh1+vZs76qljrNAfcHNNZnwLghF3bFwd0opckBRQ0Fy4iaxSn3ovwjKu2bZ\n"+
-                "/fzAMDSzjWm5SVOr3bgDKseJmfP3ILDfAzEH5BksDatPqWRDI96YOFNHNfmJ9AmO\n"+
-                "fdLeR234rixSrfcMiCPCk8ghjtkrh6MGFOVbABEBAAHNTU5vdGFyeSAoTm90YXJ5\n"+
+                "xsBNBFJc2oIBCADmdeNxpOVrdBhHiUdQwX/COdDqB8ipHWtEnmbVGBL9S89HVBCy\n"+
+                "DL4RgWDT2xYeHWwmtDn++DU9VASrd7aJ/7nXkdADWE8juQ2iBAVLQzBjf7me1k6C\n"+
+                "iTWJJUOsQTYe826ggf9cv++grSGBFS7DhLR7LZd50K8d+RLXtu9IYL6xdso2ZgUg\n"+
+                "54wwZRMqajZi/ep/97R6n/cNK9RsdjVGYU45G7ganaIUoAQkSU+D7iOMVFAp0ZRG\n"+
+                "F+hiiPA9/hUZaXvecpGnFCnkj1IDyi6b2nCc3pr6lpXJ6l0GVZU3PM3ICksamQA/\n"+
+                "KhX0g826Yl2w7iET3dQnd2HDioslC3X1GYRrABEBAAHNTU5vdGFyeSAoTm90YXJ5\n"+
                 "IGZvciBkZXYuc2NyYW1ibGUuaW8gU2NyYW1ibGUgU2VydmVyKSA8c3VwcG9ydEBk\n"+
-                "ZXYuc2NyYW1ibGUuaW8+wsBiBBMBCAAWBQJSTNjECRBkHs2sSxRdNAIbAwIZAQAA\n"+
-                "NTIIAHYURtQ9kPzbM2we5NEtSYugGUtaOlfksH4eNdLeSUta0lo5sAhTIDqhpU6r\n"+
-                "VZBFC/QMenvsJNjfLrusbDHUduOSdyHOWGMspvYMDD9k5b46HA6Gg/wS1HJvMImp\n"+
-                "3wMEnbP0hOx5RGgizYzRJW4t0lGJ24MPvXxyzH4XEWIpev5vskP50e/Al36i4w21\n"+
-                "xdJ73JSXw0AqZqaK3dQeZYRqFEK7UDdAWifOmgBWTKn1PH8zFIdf8YPx8y/Atq6K\n"+
-                "nEBKmrEAMkwOZxRFXGnQl6ZdvgbGWg3U5L8M7vkf2mQObbqqTkUEDh5DdC4so37t\n"+
-                "M9lIDTbqvzo80fUX/l/mzYc6HyTOwE0EUkzYxAEIAKA3QTMKdayva/0VgFXv7vjM\n"+
-                "SOqjcqFgcWgIsZyRGjWd04X2KZrAr3iO6V842JO3my34vmNuKG7Bys2A+b0oRrCU\n"+
-                "OP+XKmcqYwyf/lzwWgvSzZ/B7wsCn2pic8/gdbFvK4Nl2gwPmD+BPxy7ykdvIdkM\n"+
-                "ZYJVyPR9LSoPPXDsFwDXQ9FGtijfS5MeCAOadMHhk8Lzk1gSi4lGwP8seJwllH1d\n"+
-                "31YWprpKbMxZOZSvZSc5BvEgGeTgNGDzOnX0UqlAGIbUlwAhP/O/Q7np8LcYYIuS\n"+
-                "bwGa51na39Z/MVyZiwJya1Sw4ovNqZiB/LZHe6vObCdvB0MjShEriZnKslKok1UA\n"+
-                "EQEAAcLAXwQYAQgAEwUCUkzYxAkQZB7NrEsUXTQCGwwAAAHpCAB3ZRFjStuoO3FR\n"+
-                "efXaFQeFXSjV7x9MeFq0atoKp/5HGICnWyGvRWAVLhUu1svs15BeEBOXPKhCyWAc\n"+
-                "tzCQVvqlXEK0zcRW74nlOWoQH4QbjrYHQxdzHnzUfOIK2/zOcH0voX+QMu6kyC62\n"+
-                "2SRA0PxrANdFMrgRrxKzpptQiTYFvy1cZR/wZ5cutaO2BNBwHh5grPiTtLw9YAUQ\n"+
-                "cipCIzR5sCwi1wxU0hXrKlyP2fXFDgcreqP46ZUQObg6SnjvArxMzsYNnStfbW/W\n"+
-                "aNQWj12+wxHNgUyo1xhkvPk5g8svGhAFsZHVB93YxkKMX79SFku6nQGNbl7Ez3Mu\n"+
-                "hO2q+5YC\n"+
-                "=Hmrz\n"+
+                "ZXYuc2NyYW1ibGUuaW8+wsBiBBMBCAAWBQJSXNqCCRCu0oPlz9UuMAIbAwIZAQAA\n"+
+                "xksIAGXEzunkHUjkE/U9UbN/KH3+acKR4O5hwlyhcsfpavLu9hOym7jB0GmvwHaz\n"+
+                "EfMWGCbwx80+E4hiM49deDylszw1AEzD3lBfDnisNAa52M52Nx2c7HD/yNKPzFyn\n"+
+                "TxcdAo56luUeXVRRkBHoZbFvS7lP+WHEroTXvRMxbmILqgAEoyKAksg33gOXxR/Z\n"+
+                "8Ui2zxibVm0QYQwhoLsFBEFJ/EozYstKONRpWt7WmUWrz5FsXnQ8zPalZ5um9MjS\n"+
+                "y+lexuifww6wlvn5iYFaeZpo8YIJGsA7BZg0sAnzYX9sjA+NRNGIanWVrDy7ZQk7\n"+
+                "wK/G4Xzw2k5RivtyTKPmz8AyuEHOwE0EUlzaggEIAL2T/fjwRYUuGvV/iUuymC4T\n"+
+                "amyCSc32wL81NkCj8lKrmyOnPvOh6iYd19t9xfHMfQ67jyGPk6vkNdrJyZPUuTg5\n"+
+                "tp8h8rMfKspd5nUTmGey+f1sk7YMzZOs3xo+qopznsvvBtBnoHrEf3i5eZqX2BPn\n"+
+                "LxIfoiACeVFz9eV6vHP3Y0gm+3u9tKfANyTAz6JVl4B/x/BKX4Z9/p35zG2Hl4Oq\n"+
+                "b2KACJ9sXO14fvCcahrEBB05OAc8X/WbYCyT8P3kgyzHAa63O/ILmI6grqE89Et1\n"+
+                "ZxkylLgSj9coeWdnGF+fs/VlSJGr+Iu2co3+p6hthlHjj0J2fZBc77BxRHkI+v0A\n"+
+                "EQEAAcLAXwQYAQgAEwUCUlzaggkQrtKD5c/VLjACGwwAAIJ2CACzLyRS1i0FS/Oc\n"+
+                "kYcr1tRqQ90DV4U6AvgDEJyf7dtdqrk+pmKzCHk6kK7j248WKP1csto3EL9o3CBP\n"+
+                "Z8JwGKazhsVaQqlNAblSSxWFnn2JzsylrTnG/6vqIFMk/mrPvHtPIS1esQoOrXnz\n"+
+                "Q/Zd7/3glyBVmnAQJvC9hNi87KDR/Pl1mKzVajNfvpbAUWni/wMunIo87targC5S\n"+
+                "t6KlZgMss4rTHSIMyYtxHjZShIL4Ds7Nu41ZK+x8gJCb5vJBeCkW6Aq+K623F+Ej\n"+
+                "kcO8wuJGKF1zonfTrJWgU276VRZWbKkoTF6Zxs1G/5Ey98hN+VQQPfSxlmUntwA9\n"+
+                "SXVSR8B4\n"+
+                "=epNv\n"+
                 "-----END PGP PUBLIC KEY BLOCK-----"
             ),
     })

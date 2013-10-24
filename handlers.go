@@ -182,13 +182,14 @@ func publicKeysHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			for _, addr := range pubKeyLookup {
-				pubHash := LoadPubHash(addr.Name)
+				name, hash := addr.NameAndHash()
+				pubHash := LoadPubHash(name)
 				if pubHash == "" {
-					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{"", "Unknown name " + addr.Name}
+					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{"", "Unknown name " + name}
 					continue
 				}
 				pubKey := LoadPubKey(pubHash)
-				if addr.HashPart() == "" || pubHash == addr.HashPart() {
+				if hash == "" || pubHash == hash {
 					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{pubKey, ""}
 				} else {
 					res.PublicKeys[addr.StringNoHash()] = &PublicKeysPubKeyError{pubKey, "Wrong hash for name"}
@@ -430,7 +431,7 @@ func inboxHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 	var emailHeaders []EmailHeader
 	var total int
 	if box == "inbox" || box == "archive" || box == "sent" {
-		emailHeaders = LoadBox(userId.EmailAddress, box, offset, limit)
+		emailHeaders = LoadBoxByThread(userId.EmailAddress, box, offset, limit)
 		total, err = CountBox(userId.EmailAddress, box)
 		if err != nil {
 			panic(err)
@@ -479,9 +480,21 @@ func emailFetchHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 	id := r.URL.Path[len("/email/"):]
 	validateMessageID(id)
 
+	type EmailBody struct {
+		CipherBody  string `json:"cipherBody"`
+		AncestorIDs string `json:"ancestorIds"`
+		ThreadID    string `json:"threadId"`
+	}
+
 	if len(BoxesForMessage(userId.EmailAddress, id)) > 0 {
 		message := LoadMessage(id)
-		w.Write([]byte(message.CipherBody))
+		resJson, err := json.Marshal(EmailBody{
+			message.CipherBody,
+			message.AncestorIDs,
+			message.ThreadID,
+		})
+		if err != nil { panic (err) }
+		w.Write(resJson)
 	} else {
 		http.Error(w, "Invalid message", http.StatusUnauthorized)
 		return
@@ -504,9 +517,13 @@ func emailDeleteHandler(w http.ResponseWriter, r *http.Request, userId *UserID) 
 	DeleteFromBoxes(userId.EmailAddress, id)
 }
 
+// POST /email/ creates a new email from auth user
 func emailSendHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 	email := new(Email)
 	email.MessageID = validateMessageID(r.FormValue("msgId"))
+	email.ThreadID = validateMessageID(r.FormValue("threadId"))
+	email.AncestorIDs = ParseAngledEmailAddresses(r.FormValue("ancestorIds"), " ").
+		AngledStringCappedToBytes(" ", GetConfig().AncestorIDsMaxBytes)
 	email.UnixTime = time.Now().Unix()
 	email.From = userId.EmailAddress
 	email.To = r.FormValue("to")

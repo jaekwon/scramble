@@ -219,6 +219,44 @@ func LoadBox(address string, box string, offset, limit int) []EmailHeader {
 	return rowsToHeaders(rows)
 }
 
+// Like LoadBox(), but only returns the latest mail in the box for each thread.
+func LoadBoxByThread(address string, box string, offset, limit int) []EmailHeader {
+	log.Printf("Fetching %s for %s by thread\n", box, address)
+	/* TODO: delete
+	rows, err := db.Query("SELECT e.message_id, e.unix_time, "+
+		"e.from_email, e.to_email, e.cipher_subject, e.thread_id "+
+		"FROM email AS e INNER JOIN ( "+
+			"SELECT SUBSTRING(max_row,12) AS message_id FROM ( "+
+				"SELECT MAX(CONCAT(b.unix_time, " ", b.message_id)) AS max_row FROM box AS b "+
+				"WHERE b.address = ? AND b.box = ? "+
+				"GROUP BY b.thread_id "+
+			") AS blah "+
+		") AS m ON e.message_id = m.message_id "+
+		"ORDER BY e.unix_time DESC "+
+		"LIMIT ?, ?",
+		address, box,
+		offset, limit)
+	*/
+	rows, err := db.Query("SELECT e.message_id, e.unix_time, "+
+		"e.from_email, e.to_email, e.cipher_subject, e.thread_id "+
+		"FROM email AS e INNER JOIN ( "+
+			"SELECT box.message_id FROM box INNER JOIN ( "+
+				"SELECT MAX(unix_time) AS unix_time, thread_id FROM box "+
+				"WHERE address = ? AND box = ? GROUP BY thread_id "+
+			") AS max ON "+
+			"max.unix_time = box.unix_time AND "+
+			"max.thread_id = box.thread_id AND "+
+			"box.address = ? AND box.box = ? " +
+		") AS m ON e.message_id = m.message_id "+
+		"ORDER BY e.unix_time DESC "+
+		"LIMIT ?, ?",
+		address, box,
+		address, box,
+		offset, limit)
+	if err != nil { panic(err) }
+	return rowsToHeaders(rows)
+}
+
 func CountBox(address string, box string) (count int, err error) {
 	err = db.QueryRow("SELECT count(*) FROM box "+
 		" WHERE address = ? and box = ?",
@@ -260,7 +298,7 @@ func SaveMessage(e *Email) {
 	_, err := db.Exec("insert into email "+
 		"(message_id, unix_time, from_email, to_email, "+
 		" cipher_subject, cipher_body, "+
-		" ancestor_message_ids, thread_id) "+
+		" ancestor_ids, thread_id) "+
 		"values (?,?,?,?,?,?,?,?)",
 		e.MessageID,
 		e.UnixTime,
@@ -268,7 +306,7 @@ func SaveMessage(e *Email) {
 		e.To,
 		e.CipherSubject,
 		e.CipherBody,
-		e.AncestorMessageIDs,
+		e.AncestorIDs,
 		e.ThreadID,
 	)
 	if err != nil {
@@ -279,16 +317,20 @@ func SaveMessage(e *Email) {
 // Retrieves a single message, by id
 func LoadMessage(id string) Email {
 	var email Email
-	err := db.QueryRow("select "+
+	err := db.QueryRow("SELECT "+
 		"unix_time, from_email, to_email, "+
-		"cipher_subject, cipher_body "+
-		"from email where message_id=?",
+		"cipher_subject, cipher_body, "+
+		"ancestor_ids, thread_id "+
+		"FROM email WHERE message_id=?",
 		id).Scan(
 		&email.UnixTime,
 		&email.From,
 		&email.To,
 		&email.CipherSubject,
-		&email.CipherBody)
+		&email.CipherBody,
+		&email.AncestorIDs,
+		&email.ThreadID,
+	)
 	email.MessageID = id
 	if err != nil {
 		panic(err)

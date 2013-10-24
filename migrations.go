@@ -326,7 +326,7 @@ func migrateMakeNameResolutionUnique() error {
 func migrateEmailThreading() error {
 	_, err := db.Exec(`ALTER TABLE email `+
 		`MODIFY message_id VARCHAR(255) NOT NULL, `+
-		`ADD COLUMN ancestor_message_ids VARCHAR(10240), `+
+		`ADD COLUMN ancestor_ids VARCHAR(10240), `+
 		`ADD COLUMN thread_id VARCHAR(255) NOT NULL`)
 	if err != nil { return err }
 	_ ,err = db.Exec(`UPDATE email `+
@@ -338,11 +338,15 @@ func migrateEmailThreading() error {
 	_, err = db.Exec(`ALTER TABLE box `+
 		`MODIFY message_id VARCHAR(255) NOT NULL, `+
 		`ADD COLUMN thread_id VARCHAR(255) NOT NULL`)
+	if err != nil { return err }
 	_ ,err = db.Exec(`UPDATE box `+
 		`SET message_id = CONCAT(message_id, "@", ?)`,
 		GetConfig().SmtpMxHost)
 	if err != nil { return err }
 	_, err = db.Exec(`UPDATE box SET thread_id = message_id`)
+	if err != nil { return err }
+	_, err = db.Exec(`ALTER TABLE box `+
+		`ADD INDEX (address, box, thread_id, unix_time)`)
 	return err
 }
 

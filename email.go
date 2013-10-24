@@ -22,11 +22,12 @@ func (addr *EmailAddress) StringNoHash() string {
 	return addr.Name+"@"+addr.Host
 }
 
-func (addr *EmailAddress) HashPart() string {
+// Splits the Name into what precedes the first '#' and what follows
+func (addr *EmailAddress) NameAndHash() (string, string) {
 	if hashIdx := strings.Index(addr.Name, "#"); hashIdx != -1 {
-		return addr.Name[hashIdx:]
+		return addr.Name[:hashIdx], addr.Name[hashIdx+1:]
 	}
-	return ""
+	return addr.Name, ""
 }
 
 // "foo@bar.com" -> EmailAddress
@@ -129,6 +130,25 @@ func (addrs EmailAddresses) AngledString(delim string) string {
 		return ""
 	}
 	return "<"+strings.Join(addrs.Strings(), ">"+delim+"<")+">"
+}
+
+// Like AngledString(), but drops the leftmost items such that
+// the result is less than or equal to `limit` bytes.
+// This is for storing email>ancestor_ids, for the References header.
+func (addrs EmailAddresses) AngledStringCappedToBytes(delim string, limit int) string {
+	if len(addrs) == 0 {
+		return ""
+	}
+	res := []byte("<"+strings.Join(addrs.Strings(), ">"+delim+"<")+">")
+	if len(res) <= limit {
+		return string(res)
+	}
+	resPart := string(res[len(res)-limit:])
+	addrStart := strings.Index(resPart, "<")
+	if addrStart == -1 {
+		return ""
+	}
+	return resPart[addrStart:]
 }
 
 // -> ["foo@bar.com","baz@boo.com"]

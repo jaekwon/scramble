@@ -113,12 +113,12 @@ References: %s`
 func smtpSendTo(email *Email, smtpHost string, addrs EmailAddresses) error {
 	// Construct In-Reply-To/References/X-Scramble-Thread-ID headers
 	var threadHeaders = ""
-	var ancestorMessageIDs = ParseAngledEmailAddresses(email.AncestorMessageIDs, ",")
-	if len(ancestorMessageIDs) > 0 {
+	var ancestorIDs = ParseAngledEmailAddresses(email.AncestorIDs, ",")
+	if len(ancestorIDs) > 0 {
 		threadHeaders = fmt.Sprintf(threadHeadersTemplate,
-			ancestorMessageIDs[len(ancestorMessageIDs)-1],
+			ancestorIDs[len(ancestorIDs)-1],
 			email.ThreadID,
-			email.AncestorMessageIDs,
+			email.AncestorIDs,
 		)
 	}
 	// Fill in smtpTemplate

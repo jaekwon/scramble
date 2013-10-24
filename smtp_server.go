@@ -386,13 +386,13 @@ func deliverMailLocally(client *Client) error {
 	// [<thread_id>?,...,<grandparent_message_id>,<parent_message_id>]
 	// Should start with the thread id, but it may have been truncated away.
 	// See: http://www.jwz.org/doc/threading.html
-	ancestorMessageIDs := sanitizeAncestorMessageIDs(parsed.Header)
+	ancestorIDs := sanitizeAncestorIDs(parsed.Header)
 
 	// If from another Scramble server, get threadID
 	threadIDStr := strings.Trim(parsed.Header.Get("X-Scramble-Thread-ID"), "<>")
 	threadID, ok := ParseEmailAddressSafe(threadIDStr)
 	if !ok {
-		threadID = computeThreadID(messageID, ancestorMessageIDs)
+		threadID = computeThreadID(messageID, ancestorIDs)
 	}
 
 	bodyBytes, err := ioutil.ReadAll(parsed.Body)
@@ -410,7 +410,7 @@ func deliverMailLocally(client *Client) error {
 	email.CipherSubject = cipherPackets[0]
 	email.CipherBody = cipherPackets[1]
 	email.ThreadID = threadID.String()
-	email.AncestorMessageIDs = ancestorMessageIDs.AngledString(" ")
+	email.AncestorIDs = ancestorIDs.AngledStringCappedToBytes(" ", GetConfig().AncestorIDsMaxBytes)
 
 	// TODO: consider if transactions are required.
 	// TODO: saveMessage may fail if messageId is not unique.
@@ -555,7 +555,7 @@ func md5hex(str string) string {
 	return hex.EncodeToString(sum)
 }
 
-func sanitizeAncestorMessageIDs(headers mail.Header) EmailAddresses {
+func sanitizeAncestorIDs(headers mail.Header) EmailAddresses {
 	inReplyToStr := headers.Get("In-Reply-To")
 	referencesStr := headers.Get("References")
 	inReplyTo := ParseAngledEmailAddresses(inReplyToStr, " ")
@@ -566,12 +566,12 @@ func sanitizeAncestorMessageIDs(headers mail.Header) EmailAddresses {
 	return references
 }
 
-// Generally the ancestorMessageIDs[0], we do a lookup in our db
+// Generally the ancestorIDs[0], we do a lookup in our db
 //  to see if we can find an older ancestor.
-func computeThreadID(messageID EmailAddress, ancestorMessageIDs EmailAddresses) EmailAddress {
-	if len(ancestorMessageIDs) > 0 {
+func computeThreadID(messageID EmailAddress, ancestorIDs EmailAddresses) EmailAddress {
+	if len(ancestorIDs) > 0 {
 		var ancestors []interface{}
-		for _, messageID := range ancestorMessageIDs {
+		for _, messageID := range ancestorIDs {
 			ancestors = append(ancestors, messageID.String())
 		}
 		threadIDs := LoadThreadIDsForMessageIDs(ancestors)

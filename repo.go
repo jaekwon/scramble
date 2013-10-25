@@ -338,8 +338,9 @@ func LoadMessage(id string) Email {
 	return email
 }
 
-// Load emails for a given thread & box.
-func LoadThreadInBox(address, threadId, box string, offset, limit int) []Email {
+// Load emails for a given thread in given boxes.
+func LoadThreadFromBoxes(address, threadId string, boxes []interface{}, offset, limit int) []Email {
+	boxesPH := "?"+strings.Repeat(",?", len(boxes)-1)
 	rows, err := db.Query("SELECT "+
 		"e.message_id, e.unix_time, e.from_email, e.to_email, "+
 		"e.cipher_subject, e.cipher_body, "+
@@ -348,13 +349,22 @@ func LoadThreadInBox(address, threadId, box string, offset, limit int) []Email {
 			"SELECT box.message_id FROM box WHERE "+
 			"box.address = ? AND "+
 			"box.thread_id = ? AND "+
-			"box.box = ? "+
+			"box.box in ("+boxesPH+") "+
+			"GROUP BY box.message_id "+
 			"ORDER BY box.unix_time DESC "+
 			"LIMIT ?, ? "+
 		") AS m ON e.message_id = m.message_id "+
 		"ORDER BY e.unix_time ASC",
-		address, threadId, box,
-		offset, limit,
+		// For more information on this abomination, read
+		// https://groups.google.com/d/msg/golang-dev/yszLiYREbK4/sH1AWu23l18J
+		append(
+			append([]interface{}{
+					address, threadId,
+				},
+				boxes...
+			),
+			offset, limit,
+		)...,
 	)
 	if err != nil { panic(err) }
 	return rowsToEmails(rows)

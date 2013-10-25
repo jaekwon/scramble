@@ -442,19 +442,21 @@ function decryptSubjects(headers, privateKey){
 }
 
 function readNextEmail(){
-    var msg
-    if($(".current").length == 0){
-        msg = $("li").first()
+    var msg;
+    if ($(".current").length == 0) {
+        msg = $("li").first();
     } else {
-        msg = $(".current").next()
+        msg = $(".current").next();
     }
-    displayEmail(msg)
+    if (msg.length > 0) {
+        displayEmail(msg);
+    }
 }
 
 function readPrevEmail(){
-    var msg = $(".current").prev()
-    if(msg.length > 0){
-        displayEmail(msg)
+    var msg = $(".current").prev();
+    if (msg.length > 0){
+        displayEmail(msg);
     }
 }
 
@@ -512,26 +514,47 @@ function bindEmailEvents() {
     $(".threadControl .deleteButton").click(withLastEmail(function(email){emailMove(email, "trash", true)}))
 }
 
-// Takes a subject-line <li>, selects it, shows the full email
-function displayEmail(target){
-    if(target == null || target.size()==0) {
-        $("#content").empty();
-        return;
-    }
-    $("li.current").removeClass("current");
-    target.addClass("current");
+/**
+    Takes an email header, selects its box-item, shows the thread.
+    For convenience, you can pass in the li.box-item jquery element,
+     which has the relevant .data() attributes.
 
-    var msgId = target.data("msgId");
-    var threadId = target.data("threadId");
-    var box = target.data("box");
-    var subject = target.text();
-    var params = {
-        msgId:    msgId,
-        threadId: threadId,
-        box:      box,
-    };
+    emailHeader => {
+        msgId
+        threadId
+        box         // This tells the server what box we're in. Server behavior:
+                    // If box is 'inbox', shows everything in 'inbox', 'sent'
+                    // If box is 'sent',  shows everything in 'inbox', 'sent'
+                    // If box is 'archive', shows everything in 'archive'.
+                    // 'trash' is not implemented.
+    }
+*/
+function displayEmail(emailHeader){
+
+    if (emailHeader instanceof jQuery) {
+        emailHeader = {
+            msgId:     emailHeader.data("msgId"),
+            threadId:  emailHeader.data("threadId"),
+            box:       emailHeader.data("box"),
+        };
+    }
+
+    var msgId    = emailHeader.msgId;
+    var threadId = emailHeader.threadId;
+    var box      = emailHeader.box;
+
+    $("#content").empty();
+    $("li.box-item.current").removeClass("current");
+    $("li.box-item[data-thread-id='"+threadId+"']").addClass("current");
 
     getPrivateKey(function(privateKey) {
+
+        var params = {
+            msgId:    msgId,
+            threadId: threadId,
+            box:      box,
+        };
+
         $.get("/email/", params, function(emailDatas){
             var fromAddrs = emailDatas.map("From").map(trimToLower).unique();
             lookupPublicKeys(fromAddrs, function(keyMap, newPubHashes) {
@@ -560,11 +583,6 @@ function displayEmail(target){
                     });
                     var plaintextBody = tryDecodePgp(data.CipherBody, privateKey, fromKey);
                     var parsedBody = parseBody(plaintextBody);
-                    if (data.MessageID == msgId) {
-                        if (!parsedBody.ok || parsedBody.subject != subject) {
-                            alert("Warning: Subject verification failed!");
-                        }
-                    }
                     // The email "object".
                     var email = {
                         msgId:       data.MessageID,
@@ -586,7 +604,7 @@ function displayEmail(target){
                 // Construct thread element, insert emails
                 var thread = {
                     threadId:    threadId,
-                    subject:     subject,
+                    subject:     emails[emails.length-1].subject,
                     box:         box,
                 };
                 var elThread = $(render("thread-template", thread)).data("thread", thread);
@@ -695,7 +713,9 @@ function showNextThread() {
 // COMPOSE
 //
 
-function bindComposeEvents(elCompose) {
+// cb: function(emailData), emailData has plaintext components including
+//  msgId, threadId, ancestorIds, subject, to, body...
+function bindComposeEvents(elCompose, cb) {
     elCompose.find(".sendButton").click(function(){
         // generate 160-bit (20 byte) message id
         // secure random generator, so it will be unique
@@ -705,20 +725,15 @@ function bindComposeEvents(elCompose) {
         var subject     = elCompose.find("[name='subject']").val();
         var to          = elCompose.find("[name='to']").val();
         var body        = elCompose.find("[name='body']").val();
-        sendEmail(msgId, threadId, ancestorIds, to, subject, body, function() {
-            displayStatus("Sent");
-            // If we sent an email on an existing thread (e.g. reply/forward),
-            //  then show that thread.
-            if (elCompose.find("[name='threadId']").val()) {
-                alert("hmm");
-                XXX this needs to change.
-                XXX also, we need to display the date on emails
-                XXX also, we need to show sent emails in threads in the inbox and
-                XXX inbox emails in threads in the sent box. :/
-            } else {
-                // Otherwise just show another compose view.
-                displayCompose();
-            }
+        sendEmail(msgId, threadId, ancestorIds, to, subject, body, function(){
+            cb({
+                msgId:       msgId,
+                threadId:    threadId,
+                ancestorIds: ancestorIds,
+                subject:     subject,
+                to:          to,
+                body:        body,
+            });
         });
     });
 }
@@ -733,8 +748,11 @@ function displayCompose(to, subject, body){
         subject: subject,
         body:    body || DEFAULT_SIGNATURE,
     }));
-    bindComposeEvents(elCompose);
     $("#content").empty().append(elCompose);
+    bindComposeEvents(elCompose, function(emailData) {
+        displayStatus("Sent");
+        displayCompose();
+    });
 }
 
 function displayComposeInline(email, to, subject, body) {
@@ -743,15 +761,20 @@ function displayComposeInline(email, to, subject, body) {
         email.ancestorIds+" <"+email.msgId+">" :
         "<"+email.msgId+">";
     var elCompose = $(render("compose-template", {
-        hideSubject: true,
+        inline:      true,
         threadId:    email.threadId,
         ancestorIds: newAncestorIds,
         to:          to,
         subject:     subject,
         body:        body || DEFAULT_SIGNATURE,
     }));
-    bindComposeEvents(elCompose);
     elEmail.find(".email-compose").empty().append(elCompose);
+    bindComposeEvents(elCompose, function(emailData) {
+        displayStatus("Sent");
+        emailData.box = email.box;
+        displayEmail(emailData);
+    });
+
 }
 
 function sendEmail(msgId, threadId, ancestorIds, to, subject, body, cb){

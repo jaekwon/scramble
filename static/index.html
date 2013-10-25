@@ -96,7 +96,8 @@
 <ul class="box-items">
     {{#each emailHeaders}}
         {{!-- data-msg-id becomes .data("msgId") --}}
-        <li data-msg-id="{{MessageID}}"
+        <li class="box-item"
+            data-msg-id="{{MessageID}}"
             data-thread-id="{{ThreadID}}"
             data-box="{{../box}}"
             data-time="{{UnixTime}}"
@@ -161,6 +162,7 @@
      by finding the context email data by .closest(".email").data("email").
 --}}
 <div class="email" data-msg-id="{{msgId}}">
+    <div class="received">{{formatDate time format="MMM D YYYY, hh:mm"}}</div>
     <div class="from">
         {{#if fromName}}{{fromName}}
         {{else}}{{from}} - <a href="#" class="enterFromNameButton">add contact</a>
@@ -175,7 +177,6 @@
             </span>
         {{/each}}
     </div>
-    {{!--<div><label>Received</label> <span class="received">{{formatDate time format="MMM D YYYY, hh:mm"}}</span></div> --}}
     {{!--
     <div class="emailControl controlButtons">
         <button class="replyButton">Reply</button>
@@ -202,10 +203,10 @@
 
 <!-- COMPOSE -->
 <script id="compose-template" type="text/x-handlebars-template">
-<div class="compose">
+<div class="compose {{#if inline}}inline{{/if}}">
     <input type="hidden" name="ancestorIds" value="{{ancestorIds}}"/>
     <input type="hidden" name="threadId" value="{{threadId}}"/>
-    {{#if hideSubject}}
+    {{#if inline}}
     <input type="hidden" name="subject" value="{{subject}}"/>
     {{else}}
     <div class="prompt"><label for="subject">Subject</label><input type="text" name="subject" value="{{subject}}"></span></div>

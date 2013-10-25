@@ -276,6 +276,10 @@ text-align: center;
 .email {
 margin-bottom: 10px;
 }
+.email .received {
+float: right;
+color: #888;
+}
 .email .from {
 font-weight:bold;
 }
@@ -299,10 +303,14 @@ border-bottom: 1px solid #eee;
 
 /* COMPOSE */
 .compose {
+padding-top: 10px;
 bottom:0px;
 }
 .compose label {
-width:100px;
+width: 80px;
+}
+.compose.inline label {
+width: 40px; /* no subject */
 }
 .compose .prompt input {
 width:400px;

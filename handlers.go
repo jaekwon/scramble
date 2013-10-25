@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 	//"github.com/jaekwon/go-prelude/colors"
 )
 
@@ -473,6 +474,12 @@ func emailHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 	}
 }
 
+var boxMapping = map[string][]interface{}{
+	"inbox":   []interface{}{"inbox", "sent"},
+	"sent":    []interface{}{"inbox", "sent"},
+	"archive": []interface{}{"archive"},
+}
+
 // GET /email/ fetches an email & all messages
 //  in the given box for the given threadID
 func emailFetchHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
@@ -480,9 +487,13 @@ func emailFetchHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 	// msgId := valudateMessageID(r.FormValue("msgId"))
 	threadID := validateMessageID(r.FormValue("threadId"))
 	box := validateBox(r.FormValue("box"))
+	boxes := boxMapping[box]
+	if boxes == nil {
+		panic(errors.New("Dunno how to handle box "+box))
+	}
 
-	// TODO: offset, limit
-	threadEmails := LoadThreadInBox(userId.EmailAddress, threadID, box, 0, 10)
+	// TODO XXX: offset, limit
+	threadEmails := LoadThreadFromBoxes(userId.EmailAddress, threadID, boxes, 0, 100)
 	if len(threadEmails) == 0 {
 		http.Error(w, "Not fount or unauthorized", http.StatusUnauthorized)
 		return

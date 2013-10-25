@@ -50,8 +50,8 @@ func validateToken(str string) string {
 	return str
 }
 func validateBox(str string) string {
-	if str != "inbox" && str != "sent" && str != "archive" {
-		log.Panicf("Expected 'inbox' or 'sent', got %s", str)
+	if str != "inbox" && str != "sent" && str != "archive" && str != "trash" {
+		log.Panicf("Expected inbox/sent/archive/trash, got %s", str)
 	}
 	return str
 }

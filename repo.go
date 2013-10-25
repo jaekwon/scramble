@@ -202,8 +202,6 @@ func SaveContacts(token string, cipherContacts string) {
 // For example, inbox or sent box
 // That are encrypted for a given user
 func LoadBox(address string, box string, offset, limit int) []EmailHeader {
-	log.Printf("Fetching %s for %s\n", box, address)
-
 	rows, err := db.Query("SELECT m.message_id, m.unix_time, "+
 		" m.from_email, m.to_email, m.cipher_subject, m.thread_id "+
 		" FROM email AS m INNER JOIN box AS b "+
@@ -221,7 +219,6 @@ func LoadBox(address string, box string, offset, limit int) []EmailHeader {
 
 // Like LoadBox(), but only returns the latest mail in the box for each thread.
 func LoadBoxByThread(address string, box string, offset, limit int) []EmailHeader {
-	log.Printf("Fetching %s for %s by thread\n", box, address)
 	/* TODO: delete
 	rows, err := db.Query("SELECT e.message_id, e.unix_time, "+
 		"e.from_email, e.to_email, e.cipher_subject, e.thread_id "+
@@ -243,16 +240,19 @@ func LoadBoxByThread(address string, box string, offset, limit int) []EmailHeade
 			"SELECT box.message_id FROM box INNER JOIN ( "+
 				"SELECT MAX(unix_time) AS unix_time, thread_id FROM box "+
 				"WHERE address = ? AND box = ? GROUP BY thread_id "+
+				"ORDER BY unix_time DESC "+
+				"LIMIT ?, ? "+
 			") AS max ON "+
 			"max.unix_time = box.unix_time AND "+
 			"max.thread_id = box.thread_id AND "+
 			"box.address = ? AND box.box = ? " +
 		") AS m ON e.message_id = m.message_id "+
-		"ORDER BY e.unix_time DESC "+
-		"LIMIT ?, ?",
+		"ORDER BY e.unix_time DESC ",
+		//"LIMIT ?, ?",
 		address, box,
+		offset, limit,
 		address, box,
-		offset, limit)
+	)
 	if err != nil { panic(err) }
 	return rowsToHeaders(rows)
 }
@@ -336,6 +336,50 @@ func LoadMessage(id string) Email {
 		panic(err)
 	}
 	return email
+}
+
+// Load emails for a given thread & box.
+func LoadThreadInBox(address, threadId, box string, offset, limit int) []Email {
+	rows, err := db.Query("SELECT "+
+		"e.message_id, e.unix_time, e.from_email, e.to_email, "+
+		"e.cipher_subject, e.cipher_body, "+
+		"e.ancestor_ids, e.thread_id "+
+		"FROM email AS e INNER JOIN ( "+
+			"SELECT box.message_id FROM box WHERE "+
+			"box.address = ? AND "+
+			"box.thread_id = ? AND "+
+			"box.box = ? "+
+			"ORDER BY box.unix_time DESC "+
+			"LIMIT ?, ? "+
+		") AS m ON e.message_id = m.message_id "+
+		"ORDER BY e.unix_time ASC",
+		address, threadId, box,
+		offset, limit,
+	)
+	if err != nil { panic(err) }
+	return rowsToEmails(rows)
+}
+
+func rowsToEmails(rows *sql.Rows) []Email {
+	emails := []Email{}
+	for rows.Next() {
+		var email Email
+		err := rows.Scan(
+			&email.MessageID,
+			&email.UnixTime,
+			&email.From,
+			&email.To,
+			&email.CipherSubject,
+			&email.CipherBody,
+			&email.AncestorIDs,
+			&email.ThreadID,
+		)
+		if err != nil {
+			panic(err)
+		}
+		emails = append(emails, email)
+	}
+	return emails
 }
 
 // Load thread_ids given message_ids.
@@ -439,6 +483,66 @@ func MoveEmail(address string, messageID string, newBox string) {
 	if rows != 1 {
 		log.Panicf("Expected to move one message (%v/%v), found %v", address, messageID, rows)
 	}
+}
+
+//
+// EMAIL (THREADS)
+//
+
+// Move emails in a thread to another box.
+// This function only works within the 'inbox'/'archive'/'trash' boxes
+func MoveThread(address string, messageID string, newBox string) {
+	if newBox != "inbox" && newBox != "archive" && newBox != "trash" {
+		panic("MoveEmail() cannot move emails to " + newBox)
+	}
+	res, err := db.Exec(
+		"UPDATE box AS b "+
+			"INNER JOIN ( "+
+				"SELECT thread_id, unix_time FROM email "+
+				"WHERE message_id = ? "+
+			") AS e ON "+
+			"b.thread_id = e.thread_id "+
+		"SET box = ? "+
+		"WHERE "+
+		"b.address = ? AND "+
+		"b.unix_time <= e.unix_time AND "+
+		"b.box IN ('inbox', 'archive', 'trash') ",
+		messageID, newBox, address)
+	if err != nil {
+		panic(err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		panic(err)
+	}
+	if rows == 0 {
+		log.Panicf("Expected to move at least one message (%v/%v), found none", address, messageID)
+	}
+}
+
+// Deletes messages of a thread from any of a user's box.
+// If the email is no longer referenced, it gets deleted
+//  from the email table as well.
+func DeleteThreadFromBoxes(address string, messageID string) {
+	res, err := db.Exec(
+		"DELETE b FROM box AS b "+
+			"INNER JOIN ( "+
+				"SELECT thread_id, unix_time FROM email "+
+				"WHERE message_id = ? "+
+			") AS e ON "+
+			"b.thread_id = e.thread_id "+
+		"WHERE "+
+		"b.unix_time <= e.unix_time AND "+
+		"b.address = ? ",
+		messageID, address)
+	if err != nil { panic(err) }
+	count, err := res.RowsAffected()
+	if err != nil || count == 0 {
+		log.Panicf("Could not delete thread messages for message %s for %s: %v",
+			messageID, address, err)
+	}
+	// protected by foreign key constraints
+	db.Exec("DELETE FROM email WHERE message_id=?", messageID)
 }
 
 //

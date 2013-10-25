@@ -90,13 +90,18 @@
 </script>
 
 
-<!-- INBOX -->
+<!-- BOX -->
 <script id="box-template" type="text/x-handlebars-template">
 {{> box-pagination}}
 <ul class="box-items">
     {{#each emailHeaders}}
         {{!-- data-msg-id becomes .data("msgId") --}}
-        <li data-msg-id="{{MessageID}}" data-box="{{../box}}" data-time="{{UnixTime}}" data-from="{{From}}" data-to="{{To}}">{{Subject}}</li>
+        <li data-msg-id="{{MessageID}}"
+            data-thread-id="{{ThreadID}}"
+            data-box="{{../box}}"
+            data-time="{{UnixTime}}"
+            data-from="{{From}}"
+            data-to="{{To}}">{{Subject}}</li>
     {{/each}}
 </ul>
 {{> box-pagination}}
@@ -126,11 +131,23 @@
 
 <!-- THREAD (MANY EMAILS) -->
 <script id="thread-template" type="text/x-handlebars-template">
-<div id="thread">
-    <div id="thread-emails">
+<div id="thread" data-thread-id="{{threadId}}">
+    <div id="thread-subject">
+        <h2>{{subject}}</h2>
+        <div class="threadControl controlButtons">
+            <button class="replyButton">Reply</button>
+            <button class="replyAllButton">Reply All</button>
+            <button class="forwardButton">Forward</button>
+            {{#ifCond box '==' "inbox"}}
+            <button class="archiveButton">Archive</button>
+            {{/ifCond}}
+            {{#ifCond box '==' "archive"}}
+            <button class="moveToInboxButton">Move to Inbox</button>
+            {{/ifCond}}
+            <button class="deleteButton">Delete</button>
+        </div>
     </div>
-    {{!-- Reply/Forward etc to this thread --}}
-    <div id="thread-compose">
+    <div id="thread-emails">
     </div>
 </div>
 </script>
@@ -143,18 +160,24 @@
     For example, the buttons (ie replyButton, forwardButton) work
      by finding the context email data by .closest(".email").data("email").
 --}}
-<div class="email">
-    <h2 class="subject">{{subject}}</h1>
-    <div><label>From</label><span class="from">
-        {{#if fromName}}{{from}} - {{fromName}}
+<div class="email" data-msg-id="{{msgId}}">
+    <div class="from">
+        {{#if fromName}}{{fromName}}
         {{else}}{{from}} - <a href="#" class="enterFromNameButton">add contact</a>
         {{/if}}
-        </span></div>
-    <div><label>To</label> <span class="to">
-        {{#each toAddresses}}<div>{{address}}{{#if name}} - {{name}}{{/if}}</div>{{/each}}
-        </span></div>
-    <div><label>Received</label> <span class="received">{{formatDate time format="MMM D YYYY, hh:mm"}}</span></div>
-    <div class="replyForwardButtons">
+    </div>
+    <div class="to">to 
+        {{#each toAddresses}}
+            <span class="to-address">
+                {{#if name}}{{name}}
+                {{else}}{{address}}
+                {{/if}}
+            </span>
+        {{/each}}
+    </div>
+    {{!--<div><label>Received</label> <span class="received">{{formatDate time format="MMM D YYYY, hh:mm"}}</span></div> --}}
+    {{!--
+    <div class="emailControl controlButtons">
         <button class="replyButton">Reply</button>
         <button class="replyAllButton">Reply All</button>
         <button class="forwardButton">Forward</button>
@@ -166,7 +189,12 @@
         {{/ifCond}}
         <button class="deleteButton">Delete</button>
     </div>
-    <pre class="body">{{body}}</pre>
+    --}}
+    <div class="body">{{body}}</div>
+
+    {{!-- This is where the compose box goes when replying/forwarding this email --}}
+    <div class="email-compose">
+    </div>
 </div>
 </script>
 
@@ -174,41 +202,40 @@
 
 <!-- COMPOSE -->
 <script id="compose-template" type="text/x-handlebars-template">
-{{#if hideSubject}}
-<input type="hidden" id="subject" value="{{subject}}"/>
-{{else}}
-<div class="prompt"><label for="subject">Subject</label><input type="text" id="subject" value="{{subject}}"></span></div>
-{{/if}}
-<div class="prompt"><label for="to">To</label><input type="text" id="to" value="{{to}}"></span></div>
-<div><label>&nbsp;</label><span class="hint">Email addresses and contact names are both OK, eg "bob, joe, mgnvdy6mrhwmdfys@scramble.io"</span></div>
-<textarea id="body">
-{{#if body}}
-{{body}}
-{{else}}
---
-Encrypted with https://scramble.io
-{{/if}}
-</textarea>
-<input type="submit" id="sendButton" value="Send"></input>
+<div class="compose">
+    <input type="hidden" name="ancestorIds" value="{{ancestorIds}}"/>
+    <input type="hidden" name="threadId" value="{{threadId}}"/>
+    {{#if hideSubject}}
+    <input type="hidden" name="subject" value="{{subject}}"/>
+    {{else}}
+    <div class="prompt"><label for="subject">Subject</label><input type="text" name="subject" value="{{subject}}"></span></div>
+    {{/if}}
+    <div class="prompt"><label for="to">To</label><input type="text" name="to" value="{{to}}"></span></div>
+    <div><label>&nbsp;</label><span class="hint">Email addresses and contact names are both OK, eg "bob, joe, mgnvdy6mrhwmdfys@scramble.io"</span></div>
+    <textarea name="body">{{body}}</textarea>
+    <input type="submit" class="sendButton" value="Send"></input>
+</div>
 </script>
 
 
 
 <!-- CONTACTS -->
 <script id="contacts-template" type="text/x-handlebars-template">
-<h2>Contacts</h2>
-<ul>
-    {{#each this}}
-    <li>
-    <input type="text" class="name" placeholder="(name)" value="{{name}}" />
-    <input type="text" class="address" placeholder="(address)" value="{{address}}" />
-    <input type="text" class="pubHash" placeholder="(key hash)" value="{{pubHash}}" disabled="true" />
-    <a href="#" class="deleteButton">[X]</a>
-    </li>
-    {{/each}}
-</ul>
-<button class="addContactButton">Add Contact</button>
-<button class="saveContactsButton">Save</button>
+<div class="contacts">
+    <h2>Contacts</h2>
+    <ul>
+        {{#each this}}
+        <li>
+        <input type="text" class="name" placeholder="(name)" value="{{name}}" />
+        <input type="text" class="address" placeholder="(address)" value="{{address}}" />
+        <input type="text" class="pubHash" placeholder="(key hash)" value="{{pubHash}}" disabled="true" />
+        <a href="#" class="deleteButton">[X]</a>
+        </li>
+        {{/each}}
+    </ul>
+    <button class="addContactButton">Add Contact</button>
+    <button class="saveContactsButton">Save</button>
+</div>
 </script>
 
 <script id="new-contact-template" type="text/x-handlebars-template">

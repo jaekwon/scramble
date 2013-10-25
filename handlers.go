@@ -470,51 +470,48 @@ func emailHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
 		emailBoxHandler(w, r, userId)
 	} else if r.Method == "POST" {
 		emailSendHandler(w, r, userId)
-	} else if r.Method == "DELETE" {
-		emailDeleteHandler(w, r, userId)
 	}
 }
 
-// GET /email/id fetches the body
+// GET /email/ fetches an email & all messages
+//  in the given box for the given threadID
 func emailFetchHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
-	id := r.URL.Path[len("/email/"):]
-	validateMessageID(id)
+	// Not used:
+	// msgId := valudateMessageID(r.FormValue("msgId"))
+	threadID := validateMessageID(r.FormValue("threadId"))
+	box := validateBox(r.FormValue("box"))
 
-	type EmailBody struct {
-		CipherBody  string `json:"cipherBody"`
-		AncestorIDs string `json:"ancestorIds"`
-		ThreadID    string `json:"threadId"`
-	}
-
-	if len(BoxesForMessage(userId.EmailAddress, id)) > 0 {
-		message := LoadMessage(id)
-		resJson, err := json.Marshal(EmailBody{
-			message.CipherBody,
-			message.AncestorIDs,
-			message.ThreadID,
-		})
-		if err != nil { panic (err) }
-		w.Write(resJson)
-	} else {
-		http.Error(w, "Invalid message", http.StatusUnauthorized)
+	// TODO: offset, limit
+	threadEmails := LoadThreadInBox(userId.EmailAddress, threadID, box, 0, 10)
+	if len(threadEmails) == 0 {
+		http.Error(w, "Not fount or unauthorized", http.StatusUnauthorized)
 		return
 	}
+	resJson, err := json.Marshal(threadEmails)
+	if err != nil { panic(err) }
+	w.Write(resJson)
 }
 
 // PUT /email/id can change things about an email, eg what box it's in
 func emailBoxHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
-	id := r.URL.Path[len("/email/"):]
-	validateMessageID(id)
+	id := validateMessageID(r.URL.Path[len("/email/"):])
 	newBox := validateBox(r.FormValue("box"))
+	moveThread := (r.FormValue("moveThread") == "true")
 
-	MoveEmail(userId.EmailAddress, id, newBox)
-}
-
-// DELETE /email/id deletes an email from all of a user's boxes
-func emailDeleteHandler(w http.ResponseWriter, r *http.Request, userId *UserID) {
-	id := r.URL.Path[len("/email/"):]
-	validateMessageID(id)
-	DeleteFromBoxes(userId.EmailAddress, id)
+	// For now just delete emails instead of moving to "trash".
+	if newBox == "trash" {
+		if moveThread {
+			DeleteThreadFromBoxes(userId.EmailAddress, id)
+		} else {
+			DeleteFromBoxes(userId.EmailAddress, id)
+		}
+	} else {
+		if moveThread {
+			MoveThread(userId.EmailAddress, id, newBox)
+		} else {
+			MoveEmail(userId.EmailAddress, id, newBox)
+		}
+	}
 }
 
 // POST /email/ creates a new email from auth user

@@ -99,6 +99,7 @@ func smtpSend(msg *BoxedEmail) error {
 }
 
 const smtpTemplate = `Message-ID: <%s>%s
+Content-Type: text/plain
 From: <%s>
 To: %s
 Subject: %s
@@ -112,7 +113,7 @@ References: %s`
 
 func smtpSendTo(email *BoxedEmail, smtpHost string, addrs EmailAddresses) error {
 	var plainSubject, prependToBody string
-	if IsArmored(email.CipherSubject) {
+	if validateMessageArmorSafe(email.CipherSubject) {
 		plainSubject = "Encrypted subject"
 		prependToBody = email.CipherSubject + "\n"
 	} else {

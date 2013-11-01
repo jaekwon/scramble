@@ -71,6 +71,10 @@ viewState.getLastEmail = function() {
 viewState.contacts = null; // plaintext address book, must *always* be good data.
 viewState.notaries = null; // notaries that client trusts.
 
+// Maps email addresses to OpenPGP public key objects
+var cache = {};
+cache.pubKeys = {};
+
 
 
 //
@@ -862,10 +866,27 @@ function sendEmail(msgID, threadID, ancestorIDs, to, subject, body, cb) {
         return;
     }
 
-    // extract the recipient public key hashes
-    lookupPublicKeys(toAddresses, function(keyMap, newResolutions) {
-        var pubKeys = {}; // {toAddress: <pubKey>}
+    // find a public key for each recipient
+    var pubKeys = {}; // {toAddress: <pubKey>}
 
+    // first, try the cache
+    var toAddrsForLookup = [];
+    toAddresses.forEach(function(toAddr){
+        if(cache.pubKeys[toAddr]){
+            pubKeys[toAddr] = cache.pubKeys[toAddr];
+        } else {
+            toAddrsForLookup.push(toAddr);
+        }
+    });
+
+    // all cached? great!
+    if(toAddrsForLookup.length == 0){
+        sendEmailEncryptedIfPossible(msgID, threadID, ancestorIDs, pubKeys, subject, body, cb);
+        return;
+    }
+
+    // otherwise, do a full notary lookup
+    lookupPublicKeys(toAddrsForLookup, function(keyMap, newResolutions) {
         // Save new addresses to contacts
         if (newResolutions.length > 0) {
             trySaveContacts(addContacts(viewState.contacts, newResolutions));
@@ -873,16 +894,11 @@ function sendEmail(msgID, threadID, ancestorIDs, to, subject, body, cb) {
 
         // Verify all recipient public keys from keyMap
         var missingKeys = [];
-        for (var i = 0; i < toAddresses.length; i++) {
+        toAddrsForLookup.forEach(function(toAddr){
             var toAddr = toAddresses[i];
             var result = keyMap[toAddr];
-            if (!result.pubKey) {
-                //errors.push("Failed to fetch public key for address "+toAddr+":\n  "+result.error);
-                missingKeys.push(toAddr);
-                continue;
-            }
-            pubKeys[toAddr] = result.pubKey;
-        }
+            cache.pubKeys[toAddr] = pubKeys[toAddr] = result.pubKey || "";
+        })
 
         // If errors, abort.
         if (errors.length > 0) {
@@ -890,17 +906,30 @@ function sendEmail(msgID, threadID, ancestorIDs, to, subject, body, cb) {
             return;
         }
 
-        if (missingKeys.length > 0) {
-            if (confirm("Could not find public keys for: "+missingKeys.join(", ")
-                +" \nSend unencrypted to all recipients?")) {
-                sendEmailUnencrypted(msgID, threadID, ancestorIDs, toAddresses.join(","), subject, body, cb);
-            }
-        } else {
-            sendEmailEncrypted(msgID, threadID, ancestorIDs, pubKeys, subject, body, cb);
-        }
+        sendEmailEncryptedIfPossible(msgID, threadID, ancestorIDs, pubKeys, subject, body, cb);
     })
 
     return false;
+}
+
+// Sense an email, encryypted if psossibie.
+// If we don't have pub keys for all recipients, warn the uesr
+// and confirm if they want to send the message unencrhpted
+function sendEmailEncryptedIfPossible(msgID, threadID, ancestorIDs, pubKeys, subject, body, cb){
+    if (!result.pubKey) {
+        //errors.push("Failed to fetch public key for address "+toAddr+":\n  "+result.error);
+        missingKeys.push(toAddr);
+        continue;
+    }
+    if (missingKeys.length > 0) {
+        if (confirm("Could not find public keys for: "+missingKeys.join(", ")
+            +" \nSend unencrypted to all recipients?")) {
+            var to = Object.keys(pubKeys).join(",")
+            sendEmailUnencrypted(msgID, threadID, ancestorID, to, subject, body, cb);
+        }
+    } else {
+        sendEmailEncrypted(msgID, threadID, ancestorIDs, pubKeys, subject, body, cb);
+    }
 }
 
 /**
